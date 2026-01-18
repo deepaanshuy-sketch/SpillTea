@@ -1,51 +1,53 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>SpillTea ☕</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<meta name="theme-color" content="#8b5e34">
+<link rel="manifest" href="manifest.json">
+
 <style>
 :root{
  --bg:#121212;
  --card:#1e1e1e;
  --accent:#8b5e34;
 }
-body{
- margin:0;background:var(--bg);color:#fff;
- font-family:system-ui;overflow-x:hidden
-}
+body{margin:0;background:var(--bg);color:#fff;font-family:system-ui}
 header{
- padding:1rem;background:#1a1a1a;
- display:flex;justify-content:space-between;
+ padding:1rem;
+ background:#1a1a1a;
+ display:flex;
+ justify-content:space-between;
+ align-items:center;
  position:sticky;top:0;z-index:10
 }
 button{
- background:var(--accent);border:none;color:#fff;
- padding:6px 10px;border-radius:6px;
- transition:.2s;cursor:pointer
-}
-button:hover{transform:scale(1.05)}
-textarea,input,select{
- background:var(--card);color:#fff;
- border:1px solid #333;padding:6px
+ background:var(--accent);
+ border:none;color:#fff;
+ padding:8px 14px;
+ border-radius:8px;
+ cursor:pointer
 }
 .container{padding:1rem;padding-bottom:7rem}
 .card{
  background:var(--card);
- padding:1rem;border-radius:12px;
+ padding:1rem;
+ border-radius:12px;
  margin-bottom:1rem;
- animation:fade .3s ease
+ animation:fade .3s
 }
 @keyframes fade{from{opacity:0;transform:translateY(10px)}}
-small{color:#aaa}
 .tag{color:#4fc3f7;cursor:pointer}
 nav{
  position:fixed;bottom:0;width:100%;
  background:#1a1a1a;
  display:flex;justify-content:space-around;
- padding:.8rem 0
+ padding:1rem 0
 }
 .badge{color:#4caf50;font-size:.8rem}
+small{color:#aaa}
 </style>
 </head>
 
@@ -60,12 +62,12 @@ nav{
 
 <div id="spillBox" hidden>
 <textarea id="teaText" placeholder="Spill tea ☕"></textarea><br><br>
-<input type="color" id="textColor">
+<input type="color" id="textColor" value="#ffffff"><br><br>
 <select id="anon">
 <option value="no">Public</option>
 <option value="yes">Anonymous</option>
-</select>
-<button onclick="spillTea()">Spill</button>
+</select><br><br>
+<button id="spillBtn">Spill</button>
 <hr>
 </div>
 
@@ -85,20 +87,31 @@ nav{
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
+alert("JS loaded");
+
+// 🔥 Firebase
 firebase.initializeApp({
-  apiKey: "AIzaSyDxxxxxx",
-  authDomain: "spilltea-123.firebaseapp.com",
-  projectId: "spilltea-123",
-  storageBucket: "spilltea-123.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123:web:abc"
+ apiKey:"AIzaSyDxxxxxx",
+ authDomain:"spilltea-123.firebaseapp.com",
+ projectId:"spilltea-123",
 });
 
-const ADMIN_UID="YOUR_UID_HERE";
+// 🔗 DOM
+const authBtn=authBtn=document.getElementById("authBtn");
+const spillBox=document.getElementById("spillBox");
+const feed=document.getElementById("feed");
+const trending=document.getElementById("trending");
+const spillBtn=document.getElementById("spillBtn");
+const teaText=document.getElementById("teaText");
+const anon=document.getElementById("anon");
+const textColor=document.getElementById("textColor");
+
+// 🔐 Firebase refs
 const auth=firebase.auth();
 const db=firebase.firestore();
-let lastPostTime=0;
+const ADMIN_UID="YOUR_UID_HERE";
 
+// 👤 Auth
 auth.onAuthStateChanged(u=>{
  if(u){
   authBtn.innerText="Logout";
@@ -111,43 +124,46 @@ auth.onAuthStateChanged(u=>{
   loadFeed();loadTrending();
  }else{
   authBtn.innerText="Login";
+  spillBox.hidden=true;
  }
 });
 
 authBtn.onclick=()=>{
- auth.currentUser?auth.signOut():
- auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+ auth.currentUser
+ ?auth.signOut()
+ :auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
 };
 
-function spillTea(){
- const now=Date.now();
- if(now-lastPostTime<60000){
-  alert("Chill ☕ one tea per minute");return;
- }
- lastPostTime=now;
-
+// ☕ Post
+spillBtn.onclick=()=>{
+ if(!auth.currentUser) return alert("Login first");
  const txt=teaText.value.trim();
  if(!txt) return;
 
  const tags=txt.match(/#\w+/g)||[];
+
  db.collection("posts").add({
-  text:txt,tags,
+  text:txt,
+  tags,
+  likes:0,
+  comments:[],
   anon:anon.value==="yes",
   name:anon.value==="yes"?"Anonymous":auth.currentUser.displayName,
   uid:auth.currentUser.uid,
   color:textColor.value,
-  time:now
+  time:Date.now()
  });
 
  tags.forEach(t=>{
   db.collection("trending").doc(t)
   .set({count:firebase.firestore.FieldValue.increment(1)},{merge:true});
  });
- teaText.value="";
-}
 
+ teaText.value="";
+};
+
+// 📰 Feed
 function loadFeed(tag=null){
- feed.innerHTML="";
  db.collection("posts").orderBy("time","desc")
  .onSnapshot(s=>{
   feed.innerHTML="";
@@ -159,10 +175,11 @@ function loadFeed(tag=null){
     <b>@${p.name}</b>
     ${p.uid===ADMIN_UID?'<span class="badge">✔</span>':""}
     <p style="color:${p.color}">
-    ${p.text.replace(/#\w+/g,m=>`<span class="tag" onclick="loadFeed('${m}')">${m}</span>`)}
+     ${p.text.replace(/#\w+/g,m=>`<span class="tag" onclick="loadFeed('${m}')">${m}</span>`)}
     </p>
     <small>
-     <span onclick="tip('${p.uid}')">💰 Tip</span> ·
+     <span onclick="like('${d.id}')">❤️ ${p.likes}</span> ·
+     <span onclick="comment('${d.id}')">💬</span> ·
      <span onclick="report('${d.id}')">🚩</span>
     </small>
    </div>`;
@@ -170,20 +187,27 @@ function loadFeed(tag=null){
  });
 }
 
-function tip(uid){
- if(uid===auth.currentUser.uid) return;
- db.collection("users").doc(auth.currentUser.uid)
- .update({coins:firebase.firestore.FieldValue.increment(-1)});
- db.collection("users").doc(uid)
- .update({coins:firebase.firestore.FieldValue.increment(1)});
- alert("Tipped ☕");
+// ❤️ Like
+function like(id){
+ if(!auth.currentUser) return;
+ db.collection("posts").doc(id)
+ .update({likes:firebase.firestore.FieldValue.increment(1)});
 }
 
-function report(id){
- db.collection("reports").add({post:id,time:Date.now()});
- alert("Reported");
+// 💬 Comment
+function comment(id){
+ const c=prompt("Comment");
+ if(!c) return;
+ db.collection("posts").doc(id)
+ .update({
+  comments:firebase.firestore.FieldValue.arrayUnion({
+   by:auth.currentUser.displayName,
+   text:c
+  })
+ });
 }
 
+// 🔥 Trending
 function loadTrending(){
  db.collection("trending").orderBy("count","desc").limit(5)
  .onSnapshot(s=>{
@@ -194,16 +218,24 @@ function loadTrending(){
  });
 }
 
-function showInvite(){
- const code=Math.random().toString(36).slice(2,8);
- db.collection("invites").doc(code)
- .set({by:auth.currentUser.uid});
- alert("Invite code: "+code);
+// 🚩 Report
+function report(id){
+ if(!auth.currentUser) return;
+ db.collection("reports").add({post:id,time:Date.now()});
+ alert("Reported");
 }
 
+// 🔗 Invite
+function showInvite(){
+ if(!auth.currentUser) return alert("Login first");
+ alert("Invite system active ☕");
+}
+
+// 🛡️ Admin
 function showAdmin(){
- if(auth.currentUser.uid!==ADMIN_UID) return alert("No access");
- alert("Admin panel coming (reports + verify users)");
+ if(!auth.currentUser||auth.currentUser.uid!==ADMIN_UID)
+  return alert("No access");
+ alert("Admin panel coming (reports + verify)");
 }
 </script>
 
