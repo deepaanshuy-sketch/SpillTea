@@ -5,48 +5,61 @@
 <title>SpillTea ☕</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<meta name="theme-color" content="#8b5e34">
-<link rel="manifest" href="manifest.json">
-
 <style>
 :root{
  --bg:#121212;
  --card:#1e1e1e;
  --accent:#8b5e34;
 }
-body{margin:0;background:var(--bg);color:#fff;font-family:system-ui}
+body{
+ margin:0;
+ background:var(--bg);
+ color:#fff;
+ font-family:system-ui;
+}
 header{
  padding:1rem;
  background:#1a1a1a;
  display:flex;
  justify-content:space-between;
  align-items:center;
- position:sticky;top:0;z-index:10
+ position:sticky;
+ top:0;
 }
 button{
  background:var(--accent);
- border:none;color:#fff;
+ border:none;
+ color:#fff;
  padding:8px 14px;
  border-radius:8px;
- cursor:pointer
+ cursor:pointer;
 }
-.container{padding:1rem;padding-bottom:7rem}
+.container{
+ padding:1rem;
+ padding-bottom:6rem;
+}
 .card{
  background:var(--card);
  padding:1rem;
  border-radius:12px;
  margin-bottom:1rem;
- animation:fade .3s
 }
-@keyframes fade{from{opacity:0;transform:translateY(10px)}}
-.tag{color:#4fc3f7;cursor:pointer}
+textarea{
+ width:100%;
+ height:80px;
+ border-radius:8px;
+ border:none;
+ padding:.5rem;
+}
 nav{
- position:fixed;bottom:0;width:100%;
+ position:fixed;
+ bottom:0;
+ width:100%;
  background:#1a1a1a;
- display:flex;justify-content:space-around;
- padding:1rem 0
+ display:flex;
+ justify-content:space-around;
+ padding:.8rem 0;
 }
-.badge{color:#4caf50;font-size:.8rem}
 small{color:#aaa}
 </style>
 </head>
@@ -54,188 +67,110 @@ small{color:#aaa}
 <body>
 
 <header>
-<h3>SpillTea ☕</h3>
-<button id="authBtn">Login</button>
+ <h3>SpillTea ☕</h3>
+ <button id="authBtn">Login</button>
 </header>
 
 <div class="container">
 
 <div id="spillBox" hidden>
-<textarea id="teaText" placeholder="Spill tea ☕"></textarea><br><br>
-<input type="color" id="textColor" value="#ffffff"><br><br>
-<select id="anon">
-<option value="no">Public</option>
-<option value="yes">Anonymous</option>
-</select><br><br>
-<button id="spillBtn">Spill</button>
-<hr>
+ <textarea id="teaText" placeholder="Spill tea ☕"></textarea><br><br>
+
+ <select id="anon">
+  <option value="no">Public</option>
+  <option value="yes">Anonymous</option>
+ </select><br><br>
+
+ <button id="spillBtn">Spill</button>
+ <hr>
 </div>
 
-<div id="trending"></div>
 <div id="feed"></div>
 
 </div>
 
 <nav>
-<span onclick="loadFeed()">🏠</span>
-<span onclick="showInvite()">🔗</span>
-<span onclick="showAdmin()">🛡️</span>
+ <span onclick="loadFeed()">🏠</span>
 </nav>
 
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-alert("JS loaded");
-
-// 🔥 Firebase
+// 🔥 Firebase init (CONNECTED)
 firebase.initializeApp({
- apiKey:"AIzaSyDxxxxxx",
- authDomain:"spilltea-123.firebaseapp.com",
- projectId:"spilltea-123",
+ apiKey: "AIzaSyBsCftGcy-dH8RxxP2UxKoGG4DapRHHASo",
+ authDomain: "spilltea-54aa8.firebaseapp.com",
+ projectId: "spilltea-54aa8"
 });
 
+const auth = firebase.auth();
+const db = firebase.firestore();
+const provider = new firebase.auth.GoogleAuthProvider();
+
 // 🔗 DOM
-const authBtn=authBtn=document.getElementById("authBtn");
-const spillBox=document.getElementById("spillBox");
-const feed=document.getElementById("feed");
-const trending=document.getElementById("trending");
-const spillBtn=document.getElementById("spillBtn");
-const teaText=document.getElementById("teaText");
-const anon=document.getElementById("anon");
-const textColor=document.getElementById("textColor");
+const authBtn = document.getElementById("authBtn");
+const spillBox = document.getElementById("spillBox");
+const feed = document.getElementById("feed");
+const spillBtn = document.getElementById("spillBtn");
+const teaText = document.getElementById("teaText");
+const anon = document.getElementById("anon");
 
-// 🔐 Firebase refs
-const auth=firebase.auth();
-const db=firebase.firestore();
-const ADMIN_UID="YOUR_UID_HERE";
-
-// 👤 Auth
-auth.onAuthStateChanged(u=>{
- if(u){
+// 🔐 Auth state
+auth.onAuthStateChanged(user=>{
+ if(user){
   authBtn.innerText="Logout";
   spillBox.hidden=false;
-  db.collection("users").doc(u.uid).set({
-   name:u.displayName,
-   verified:false,
-   coins:10
-  },{merge:true});
-  loadFeed();loadTrending();
+  loadFeed();
  }else{
   authBtn.innerText="Login";
   spillBox.hidden=true;
  }
 });
 
+// 🔐 Login / Logout (REDIRECT SAFE)
 authBtn.onclick=()=>{
  auth.currentUser
- ?auth.signOut()
- :auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+ ? auth.signOut()
+ : auth.signInWithRedirect(provider);
 };
 
-// ☕ Post
+// ☕ Spill post
 spillBtn.onclick=()=>{
  if(!auth.currentUser) return alert("Login first");
- const txt=teaText.value.trim();
- if(!txt) return;
 
- const tags=txt.match(/#\w+/g)||[];
+ const text = teaText.value.trim();
+ if(!text) return;
 
  db.collection("posts").add({
-  text:txt,
-  tags,
-  likes:0,
-  comments:[],
-  anon:anon.value==="yes",
-  name:anon.value==="yes"?"Anonymous":auth.currentUser.displayName,
-  uid:auth.currentUser.uid,
-  color:textColor.value,
-  time:Date.now()
- });
-
- tags.forEach(t=>{
-  db.collection("trending").doc(t)
-  .set({count:firebase.firestore.FieldValue.increment(1)},{merge:true});
+  text,
+  anon: anon.value==="yes",
+  name: anon.value==="yes" ? "Anonymous" : auth.currentUser.displayName,
+  time: Date.now()
  });
 
  teaText.value="";
 };
 
 // 📰 Feed
-function loadFeed(tag=null){
- db.collection("posts").orderBy("time","desc")
- .onSnapshot(s=>{
+function loadFeed(){
+ db.collection("posts")
+ .orderBy("time","desc")
+ .onSnapshot(snap=>{
   feed.innerHTML="";
-  s.forEach(d=>{
-   const p=d.data();
-   if(tag && !p.tags.includes(tag)) return;
-   feed.innerHTML+=`
-   <div class="card">
-    <b>@${p.name}</b>
-    ${p.uid===ADMIN_UID?'<span class="badge">✔</span>':""}
-    <p style="color:${p.color}">
-     ${p.text.replace(/#\w+/g,m=>`<span class="tag" onclick="loadFeed('${m}')">${m}</span>`)}
-    </p>
-    <small>
-     <span onclick="like('${d.id}')">❤️ ${p.likes}</span> ·
-     <span onclick="comment('${d.id}')">💬</span> ·
-     <span onclick="report('${d.id}')">🚩</span>
-    </small>
-   </div>`;
+  snap.forEach(doc=>{
+   const p = doc.data();
+   feed.innerHTML += `
+    <div class="card">
+     <b>@${p.name}</b>
+     <p>${p.text}</p>
+     <small>${new Date(p.time).toLocaleString()}</small>
+    </div>
+   `;
   });
  });
-}
-
-// ❤️ Like
-function like(id){
- if(!auth.currentUser) return;
- db.collection("posts").doc(id)
- .update({likes:firebase.firestore.FieldValue.increment(1)});
-}
-
-// 💬 Comment
-function comment(id){
- const c=prompt("Comment");
- if(!c) return;
- db.collection("posts").doc(id)
- .update({
-  comments:firebase.firestore.FieldValue.arrayUnion({
-   by:auth.currentUser.displayName,
-   text:c
-  })
- });
-}
-
-// 🔥 Trending
-function loadTrending(){
- db.collection("trending").orderBy("count","desc").limit(5)
- .onSnapshot(s=>{
-  trending.innerHTML="<b>Trending ☕</b><br>";
-  s.forEach(d=>{
-   trending.innerHTML+=`<span class="tag" onclick="loadFeed('${d.id}')">${d.id}</span> `;
-  });
- });
-}
-
-// 🚩 Report
-function report(id){
- if(!auth.currentUser) return;
- db.collection("reports").add({post:id,time:Date.now()});
- alert("Reported");
-}
-
-// 🔗 Invite
-function showInvite(){
- if(!auth.currentUser) return alert("Login first");
- alert("Invite system active ☕");
-}
-
-// 🛡️ Admin
-function showAdmin(){
- if(!auth.currentUser||auth.currentUser.uid!==ADMIN_UID)
-  return alert("No access");
- alert("Admin panel coming (reports + verify)");
 }
 </script>
 
