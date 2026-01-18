@@ -10,6 +10,7 @@
  --bg:#121212;
  --card:#1e1e1e;
  --accent:#8b5e34;
+ --muted:#aaa;
 }
 body{
  margin:0;
@@ -25,6 +26,7 @@ header{
  align-items:center;
  position:sticky;
  top:0;
+ z-index:10;
 }
 button{
  background:var(--accent);
@@ -34,10 +36,12 @@ button{
  border-radius:8px;
  cursor:pointer;
 }
-.container{
+.page{
+ display:none;
  padding:1rem;
  padding-bottom:6rem;
 }
+.page.active{display:block}
 .card{
  background:var(--card);
  padding:1rem;
@@ -51,20 +55,20 @@ textarea{
  border:none;
  padding:.5rem;
 }
-select{
- padding:6px;
- border-radius:6px;
-}
 nav{
  position:fixed;
  bottom:0;
  width:100%;
  background:#1a1a1a;
  display:flex;
- justify-content:center;
- padding:.8rem 0;
+ justify-content:space-around;
+ padding:.7rem 0;
 }
-small{color:#aaa}
+nav span{
+ cursor:pointer;
+ font-size:1.3rem;
+}
+small{color:var(--muted)}
 </style>
 </head>
 
@@ -75,26 +79,51 @@ small{color:#aaa}
  <button id="authBtn">Login</button>
 </header>
 
-<div class="container">
-
-<div id="spillBox" style="display:none">
- <textarea id="teaText" placeholder="Spill tea ☕"></textarea><br><br>
-
- <select id="anon">
-  <option value="no">Public</option>
-  <option value="yes">Anonymous</option>
- </select><br><br>
-
- <button id="spillBtn">Spill ☕</button>
- <hr>
+<!-- HOME -->
+<div id="home" class="page active">
+ <div id="spillBox" style="display:none">
+  <textarea id="teaText" placeholder="Spill tea ☕"></textarea><br><br>
+  <select id="anon">
+   <option value="no">Public</option>
+   <option value="yes">Anonymous</option>
+  </select><br><br>
+  <button id="spillBtn">Spill ☕</button>
+  <hr>
+ </div>
+ <div id="feed"></div>
 </div>
 
-<div id="feed"></div>
+<!-- FOLLOWERS TEA -->
+<div id="followers" class="page">
+ <h3>❤️ Followers Tea</h3>
+ <div id="likedFeed"></div>
+</div>
 
+<!-- BROWSE -->
+<div id="browse" class="page">
+ <h3>🔍 Browse</h3>
+ <div id="usersList"></div>
+</div>
+
+<!-- GCs -->
+<div id="gcs" class="page">
+ <h3>💬 Group Chats</h3>
+ <div class="card">GC system coming next 🔥</div>
+</div>
+
+<!-- PROFILE -->
+<div id="profile" class="page">
+ <h3>👤 Profile</h3>
+ <div class="card" id="profileCard"></div>
+ <button onclick="auth.signOut()">Logout</button>
 </div>
 
 <nav>
- <span onclick="loadFeed()">🏠 Home</span>
+ <span onclick="showPage('home')">🏠</span>
+ <span onclick="showPage('followers')">❤️</span>
+ <span onclick="showPage('browse')">🔍</span>
+ <span onclick="showPage('gcs')">💬</span>
+ <span onclick="showPage('profile')">👤</span>
 </nav>
 
 <!-- Firebase -->
@@ -103,7 +132,6 @@ small{color:#aaa}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-/* 🔥 Firebase init */
 firebase.initializeApp({
  apiKey: "AIzaSyBsCftGcy-dH8RxxP2UxKoGG4DapRHHASo",
  authDomain: "spilltea-54aa8.firebaseapp.com",
@@ -114,77 +142,112 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 const provider = new firebase.auth.GoogleAuthProvider();
 
-/* 🔗 DOM */
+/* Navigation */
+function showPage(id){
+ document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+ document.getElementById(id).classList.add("active");
+}
+
+/* Auth */
 const authBtn = document.getElementById("authBtn");
 const spillBox = document.getElementById("spillBox");
-const feed = document.getElementById("feed");
-const spillBtn = document.getElementById("spillBtn");
-const teaText = document.getElementById("teaText");
-const anon = document.getElementById("anon");
 
-/* 🔐 Auth state */
 auth.onAuthStateChanged(user=>{
  if(user){
-  authBtn.innerText = "Logout";
-  spillBox.style.display = "block";
+  authBtn.innerText="Logout";
+  spillBox.style.display="block";
+  saveUser(user);
   loadFeed();
+  loadUsers();
+  loadProfile(user);
  }else{
-  authBtn.innerText = "Login";
-  spillBox.style.display = "none";
+  authBtn.innerText="Login";
+  spillBox.style.display="none";
  }
 });
 
-/* 🔐 Login / Logout */
-authBtn.onclick = async ()=>{
- if(auth.currentUser){
-  await auth.signOut();
- }else{
-  await auth.signInWithPopup(provider);
- }
+authBtn.onclick=()=>{
+ auth.currentUser ? auth.signOut() : auth.signInWithPopup(provider);
 };
 
-/* ☕ Spill post */
-spillBtn.onclick = async ()=>{
- if(!auth.currentUser){
-  alert("Login first");
-  return;
- }
+/* Save user */
+function saveUser(u){
+ db.collection("users").doc(u.uid).set({
+  name:u.displayName,
+  email:u.email
+ },{merge:true});
+}
 
- const text = teaText.value.trim();
+/* Spill */
+spillBtn.onclick=()=>{
+ if(!auth.currentUser) return;
+ const text=teaText.value.trim();
  if(!text) return;
-
- await db.collection("posts").add({
+ db.collection("posts").add({
   text,
-  anon: anon.value==="yes",
-  name: anon.value==="yes"
-    ? "Anonymous"
-    : auth.currentUser.displayName,
-  time: Date.now()
+  uid:auth.currentUser.uid,
+  name: anon.value==="yes"?"Anonymous":auth.currentUser.displayName,
+  likes:[],
+  time:Date.now()
  });
-
  teaText.value="";
 };
 
-/* 📰 Feed */
+/* Feed */
 function loadFeed(){
- db.collection("posts")
- .orderBy("time","desc")
+ db.collection("posts").orderBy("time","desc")
  .onSnapshot(snap=>{
   feed.innerHTML="";
   snap.forEach(doc=>{
-   const p = doc.data();
-   feed.innerHTML += `
+   const p=doc.data();
+   const liked=p.likes.includes(auth.currentUser?.uid);
+   feed.innerHTML+=`
     <div class="card">
      <b>@${p.name}</b>
      <p>${p.text}</p>
-     <small>${new Date(p.time).toLocaleString()}</small>
-    </div>
-   `;
+     <small>${new Date(p.time).toLocaleString()}</small><br><br>
+     <button onclick="likePost('${doc.id}')">${liked?"❤️":"🤍"}</button>
+     ${p.uid===auth.currentUser?.uid?`<button onclick="deletePost('${doc.id}')">🗑️</button>`:""}
+    </div>`;
   });
  });
 }
 
-loadFeed();
+/* Like */
+function likePost(id){
+ const ref=db.collection("posts").doc(id);
+ ref.get().then(d=>{
+  const likes=d.data().likes||[];
+  const uid=auth.currentUser.uid;
+  ref.update({
+   likes: likes.includes(uid)?likes.filter(x=>x!==uid):[...likes,uid]
+  });
+ });
+}
+
+/* Delete */
+function deletePost(id){
+ db.collection("posts").doc(id).delete();
+}
+
+/* Browse users */
+function loadUsers(){
+ db.collection("users").onSnapshot(snap=>{
+  usersList.innerHTML="";
+  snap.forEach(d=>{
+   usersList.innerHTML+=`
+    <div class="card">@${d.data().name}</div>`;
+  });
+ });
+}
+
+/* Profile */
+function loadProfile(u){
+ profileCard.innerHTML=`
+  <b>${u.displayName}</b><br>
+  <small>${u.email}</small>
+ `;
+}
 </script>
 
 </body>
