@@ -6,191 +6,198 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
-:root{--bg:#121212;--card:#1e1e1e;--accent:#8b5e34;}
-body{margin:0;background:var(--bg);color:#fff;font-family:system-ui}
-header{padding:1rem;background:#1a1a1a;display:flex;justify-content:space-between;position:sticky;top:0}
-button{background:var(--accent);border:none;color:#fff;padding:8px 14px;border-radius:8px}
-.container{padding:1rem;padding-bottom:6rem}
-.card{background:var(--card);padding:1rem;border-radius:12px;margin-bottom:1rem}
-textarea,input{width:100%;border:none;border-radius:8px;padding:.6rem;margin:.4rem 0}
-nav{position:fixed;bottom:0;width:100%;background:#1a1a1a;display:flex;justify-content:space-around;padding:.7rem}
-.hidden{display:none}
-small{color:#aaa}
-.comment{margin-left:1rem;font-size:.9rem}
+body{
+  margin:0;
+  font-family: system-ui, sans-serif;
+  background:#0f0f0f;
+  color:white;
+}
+header{
+  padding:15px;
+  background:#151515;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+button{
+  background:#ffb703;
+  border:none;
+  padding:8px 14px;
+  border-radius:20px;
+  cursor:pointer;
+  font-weight:600;
+}
+input,textarea{
+  width:100%;
+  padding:10px;
+  border-radius:10px;
+  border:none;
+  margin:6px 0;
+}
+#feed .post{
+  background:#1c1c1c;
+  margin:12px;
+  padding:12px;
+  border-radius:14px;
+}
+.counts{
+  display:flex;
+  gap:15px;
+  font-size:14px;
+  margin-top:6px;
+}
+nav{
+  position:fixed;
+  bottom:0;
+  width:100%;
+  background:#151515;
+  display:flex;
+  justify-content:space-around;
+  padding:10px 0;
+}
+.hidden{display:none;}
 </style>
 </head>
 
 <body>
 
 <header>
- <h3>SpillTea ☕</h3>
- <button id="authBtn">Login</button>
+  <b>☕ SpillTea</b>
+  <button id="loginBtn">Login</button>
 </header>
 
-<div class="container">
-
-<div id="homePage">
- <div id="spillBox" class="card hidden">
-  <textarea id="teaText" placeholder="Spill tea ☕ (no personal info)"></textarea>
-  <select id="anon">
-   <option value="no">Public</option>
-   <option value="yes">Anonymous</option>
-  </select>
-  <button onclick="spillTea()">Spill</button>
- </div>
- <div id="feed"></div>
+<div id="home">
+  <textarea id="teaText" placeholder="Spill your tea anonymously ☕ (no personal info)"></textarea>
+  <button onclick="postTea()">Spill Tea</button>
+  <div id="feed"></div>
 </div>
 
-<div id="browsePage" class="hidden">
- <input id="search" placeholder="Search user..." oninput="searchUser()">
- <div id="results"></div>
+<div id="profile" class="hidden">
+  <h2>My Profile</h2>
+  <textarea id="bio" placeholder="Add bio..."></textarea>
+  <button onclick="saveBio()">Save Bio</button>
+  <p id="stats"></p>
 </div>
 
-<div id="profilePage" class="hidden">
- <h3 id="pName"></h3>
- <textarea id="bio" placeholder="Your bio"></textarea>
- <button onclick="saveBio()">Save Bio</button>
- <p>Posts: <b id="postCount">0</b></p>
- <p>Followers: <b id="followerCount">0</b></p>
- <p>Following: <b id="followingCount">0</b></p>
+<div id="browse" class="hidden">
+  <input id="search" placeholder="Search users..." oninput="searchUser()">
+  <div id="users"></div>
 </div>
 
+<div id="gcs" class="hidden">
+  <h3>Group Chats</h3>
+  <div id="gcBox"></div>
 </div>
 
 <nav>
- <span onclick="show('home')">🏠</span>
- <span onclick="show('browse')">🔍</span>
- <span onclick="show('profile')">👤</span>
+  <button onclick="showPage('home')">Home</button>
+  <button onclick="showPage('browse')">Browse</button>
+  <button onclick="showPage('gcs')">GCs</button>
+  <button onclick="showPage('profile')">Profile</button>
 </nav>
 
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<!-- FIREBASE -->
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
 
 <script>
-firebase.initializeApp({
- apiKey:"AIzaSyBsCftGcy-dH8RxxP2UxKoGG4DapRHHASo",
- authDomain:"spilltea-54aa8.firebaseapp.com",
- projectId:"spilltea-54aa8"
-});
+// 🔥 REPLACE THIS WITH YOUR FIREBASE CONFIG
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_DOMAIN",
+  projectId: "YOUR_PROJECT_ID",
+};
+firebase.initializeApp(firebaseConfig);
 
-const auth=firebase.auth();
-const db=firebase.firestore();
-const provider=new firebase.auth.GoogleAuthProvider();
+const auth = firebase.auth();
+const db = firebase.firestore();
 
-function show(p){
- ["home","browse","profile"].forEach(x=>{
-  document.getElementById(x+"Page").classList.add("hidden")
- });
- document.getElementById(p+"Page").classList.remove("hidden")
-}
+let user = null;
 
-auth.onAuthStateChanged(u=>{
- if(u){
-  authBtn.innerText="Logout";
-  spillBox.classList.remove("hidden");
-  db.collection("users").doc(u.uid).set({
-   name:u.displayName,
-   followers:[],
-   following:[]
-  },{merge:true});
-  loadFeed();loadProfile();
- }else{
-  authBtn.innerText="Login";
- }
-});
-
-authBtn.onclick=()=>{
- auth.currentUser?auth.signOut():auth.signInWithPopup(provider)
+// LOGIN
+document.getElementById("loginBtn").onclick = ()=>{
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider);
 };
 
-function spillTea(){
- if(!teaText.value)return;
- db.collection("posts").add({
-  text:teaText.value,
-  uid:auth.currentUser.uid,
-  name:anon.value==="yes"?"Anonymous":auth.currentUser.displayName,
-  likes:[],
-  time:Date.now()
- });
- teaText.value="";
+auth.onAuthStateChanged(u=>{
+  if(u){
+    user = u;
+    document.getElementById("loginBtn").innerText="Logout";
+    loadFeed();
+    loadProfile();
+  }else{
+    user=null;
+    document.getElementById("loginBtn").innerText="Login";
+  }
+});
+
+// NAV
+function showPage(p){
+  ["home","profile","browse","gcs"].forEach(x=>{
+    document.getElementById(x).classList.add("hidden");
+  });
+  document.getElementById(p).classList.remove("hidden");
 }
 
+// POST TEA
+function postTea(){
+  if(!user) return alert("Login first");
+  const text = teaText.value.trim();
+  if(!text) return;
+
+  db.collection("teas").add({
+    text,
+    uid:user.uid,
+    likes:0,
+    time:Date.now()
+  });
+  teaText.value="";
+}
+
+// LOAD FEED
 function loadFeed(){
- db.collection("posts").orderBy("time","desc")
- .onSnapshot(s=>{
-  feed.innerHTML="";
-  s.forEach(d=>{
-   const p=d.data();
-   feed.innerHTML+=`
-   <div class="card">
-    <b>@${p.name}</b>
-    <p>${p.text}</p>
-    <small>
-     ❤️ ${p.likes.length}
-     <button onclick="like('${d.id}')">Like</button>
-     <button onclick="report('${d.id}')">🚩</button>
-    </small>
-   </div>`;
+  db.collection("teas")
+  .orderBy("time","desc")
+  .onSnapshot(snap=>{
+    feed.innerHTML="";
+    snap.forEach(doc=>{
+      const d=doc.data();
+      feed.innerHTML+=`
+      <div class="post">
+        <p>${d.text}</p>
+        <div class="counts">
+          <span>❤️ ${d.likes}</span>
+          <button onclick="like('${doc.id}')">Like</button>
+        </div>
+      </div>`;
+    });
   });
- });
 }
 
+// LIKE
 function like(id){
- const ref=db.collection("posts").doc(id);
- ref.update({
-  likes:firebase.firestore.FieldValue.arrayUnion(auth.currentUser.uid)
- });
+  if(!user) return alert("Login");
+  const ref=db.collection("teas").doc(id);
+  ref.update({likes:firebase.firestore.FieldValue.increment(1)});
 }
 
-function report(id){
- db.collection("reports").add({post:id,time:Date.now()});
- alert("Reported");
-}
-
-function searchUser(){
- const q=search.value.toLowerCase();
- results.innerHTML="";
- db.collection("users").get().then(s=>{
-  s.forEach(d=>{
-   if(d.data().name.toLowerCase().includes(q)){
-    results.innerHTML+=`
-     <div class="card">
-      <b>${d.data().name}</b>
-      <button onclick="follow('${d.id}')">Follow</button>
-     </div>`;
-   }
-  });
- });
-}
-
-function follow(uid){
- const me=auth.currentUser.uid;
- db.collection("users").doc(me)
- .update({following:firebase.firestore.FieldValue.arrayUnion(uid)});
- db.collection("users").doc(uid)
- .update({followers:firebase.firestore.FieldValue.arrayUnion(me)});
-}
-
+// PROFILE
 function loadProfile(){
- const u=auth.currentUser;
- pName.innerText=u.displayName;
-
- db.collection("users").doc(u.uid)
- .onSnapshot(d=>{
-  bio.value=d.data().bio||"";
-  followerCount.innerText=d.data().followers.length;
-  followingCount.innerText=d.data().following.length;
- });
-
- db.collection("posts").where("uid","==",u.uid)
- .onSnapshot(s=>postCount.innerText=s.size);
+  db.collection("users").doc(user.uid).get().then(d=>{
+    if(d.exists) bio.value=d.data().bio||"";
+  });
+}
+function saveBio(){
+  db.collection("users").doc(user.uid).set({
+    bio:bio.value
+  },{merge:true});
 }
 
-function saveBio(){
- db.collection("users").doc(auth.currentUser.uid)
- .update({bio:bio.value});
- alert("Bio saved");
+// SEARCH
+function searchUser(){
+  users.innerHTML="Feature ready (logic later)";
 }
 </script>
 
