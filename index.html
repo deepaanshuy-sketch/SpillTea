@@ -6,64 +6,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
-:root{
- --bg:#121212;
- --card:#1e1e1e;
- --accent:#8b5e34;
-}
-body{
- margin:0;
- background:var(--bg);
- color:#fff;
- font-family:system-ui;
-}
-header{
- padding:1rem;
- background:#1a1a1a;
- display:flex;
- justify-content:space-between;
- align-items:center;
- position:sticky;
- top:0;
- z-index:10;
-}
-button{
- background:var(--accent);
- border:none;
- color:#fff;
- padding:8px 14px;
- border-radius:8px;
- cursor:pointer;
-}
-.container{
- padding:1rem;
- padding-bottom:6rem;
-}
-.card{
- background:var(--card);
- padding:1rem;
- border-radius:12px;
- margin-bottom:1rem;
-}
-textarea,input{
- width:100%;
- border-radius:8px;
- border:none;
- padding:.6rem;
- margin-bottom:.5rem;
-}
-nav{
- position:fixed;
- bottom:0;
- width:100%;
- background:#1a1a1a;
- display:flex;
- justify-content:space-around;
- padding:.7rem 0;
-}
-nav span{cursor:pointer}
-small{color:#aaa}
+:root{--bg:#121212;--card:#1e1e1e;--accent:#8b5e34;}
+body{margin:0;background:var(--bg);color:#fff;font-family:system-ui}
+header{padding:1rem;background:#1a1a1a;display:flex;justify-content:space-between;position:sticky;top:0}
+button{background:var(--accent);border:none;color:#fff;padding:8px 14px;border-radius:8px}
+.container{padding:1rem;padding-bottom:6rem}
+.card{background:var(--card);padding:1rem;border-radius:12px;margin-bottom:1rem}
+textarea,input{width:100%;border:none;border-radius:8px;padding:.6rem;margin:.4rem 0}
+nav{position:fixed;bottom:0;width:100%;background:#1a1a1a;display:flex;justify-content:space-around;padding:.7rem}
 .hidden{display:none}
+small{color:#aaa}
+.comment{margin-left:1rem;font-size:.9rem}
 </style>
 </head>
 
@@ -76,7 +29,6 @@ small{color:#aaa}
 
 <div class="container">
 
-<!-- HOME -->
 <div id="homePage">
  <div id="spillBox" class="card hidden">
   <textarea id="teaText" placeholder="Spill tea ☕ (no personal info)"></textarea>
@@ -84,103 +36,85 @@ small{color:#aaa}
    <option value="no">Public</option>
    <option value="yes">Anonymous</option>
   </select>
-  <button id="spillBtn">Spill</button>
+  <button onclick="spillTea()">Spill</button>
  </div>
  <div id="feed"></div>
 </div>
 
-<!-- FOLLOWERS TEA -->
-<div id="followersPage" class="hidden">
- <h3>Followers’ Tea 🍵</h3>
- <p><small>Same feed for now</small></p>
-</div>
-
-<!-- BROWSE -->
 <div id="browsePage" class="hidden">
- <input id="searchUser" placeholder="Search user...">
- <div id="searchResult"></div>
+ <input id="search" placeholder="Search user..." oninput="searchUser()">
+ <div id="results"></div>
 </div>
 
-<!-- GCS -->
-<div id="gcPage" class="hidden">
- <h3>Group Chats 💬</h3>
- <p><small>Coming soon</small></p>
-</div>
-
-<!-- PROFILE -->
 <div id="profilePage" class="hidden">
  <h3 id="pName"></h3>
  <textarea id="bio" placeholder="Your bio"></textarea>
  <button onclick="saveBio()">Save Bio</button>
  <p>Posts: <b id="postCount">0</b></p>
  <p>Followers: <b id="followerCount">0</b></p>
+ <p>Following: <b id="followingCount">0</b></p>
 </div>
 
 </div>
 
 <nav>
- <span onclick="showPage('home')">🏠</span>
- <span onclick="showPage('followers')">🍵</span>
- <span onclick="showPage('browse')">🔍</span>
- <span onclick="showPage('gc')">💬</span>
- <span onclick="showPage('profile')">👤</span>
+ <span onclick="show('home')">🏠</span>
+ <span onclick="show('browse')">🔍</span>
+ <span onclick="show('profile')">👤</span>
 </nav>
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
 firebase.initializeApp({
- apiKey: "AIzaSyBsCftGcy-dH8RxxP2UxKoGG4DapRHHASo",
- authDomain: "spilltea-54aa8.firebaseapp.com",
- projectId: "spilltea-54aa8"
+ apiKey:"AIzaSyBsCftGcy-dH8RxxP2UxKoGG4DapRHHASo",
+ authDomain:"spilltea-54aa8.firebaseapp.com",
+ projectId:"spilltea-54aa8"
 });
 
-const auth = firebase.auth();
-const db = firebase.firestore();
-const provider = new firebase.auth.GoogleAuthProvider();
+const auth=firebase.auth();
+const db=firebase.firestore();
+const provider=new firebase.auth.GoogleAuthProvider();
 
-const authBtn = document.getElementById("authBtn");
-const spillBox = document.getElementById("spillBox");
-const feed = document.getElementById("feed");
-
-function showPage(p){
- ["home","followers","browse","gc","profile"].forEach(x=>{
-  document.getElementById(x+"Page").classList.add("hidden");
+function show(p){
+ ["home","browse","profile"].forEach(x=>{
+  document.getElementById(x+"Page").classList.add("hidden")
  });
- document.getElementById(p+"Page").classList.remove("hidden");
+ document.getElementById(p+"Page").classList.remove("hidden")
 }
 
-auth.onAuthStateChanged(user=>{
- if(user){
+auth.onAuthStateChanged(u=>{
+ if(u){
   authBtn.innerText="Logout";
   spillBox.classList.remove("hidden");
-  loadFeed();
-  loadProfile();
+  db.collection("users").doc(u.uid).set({
+   name:u.displayName,
+   followers:[],
+   following:[]
+  },{merge:true});
+  loadFeed();loadProfile();
  }else{
   authBtn.innerText="Login";
-  spillBox.classList.add("hidden");
  }
 });
 
 authBtn.onclick=()=>{
- auth.currentUser ? auth.signOut() : auth.signInWithPopup(provider);
+ auth.currentUser?auth.signOut():auth.signInWithPopup(provider)
 };
 
-document.getElementById("spillBtn").onclick=()=>{
- const text=document.getElementById("teaText").value.trim();
- if(!text) return;
-
+function spillTea(){
+ if(!teaText.value)return;
  db.collection("posts").add({
+  text:teaText.value,
   uid:auth.currentUser.uid,
-  text,
-  name:document.getElementById("anon").value==="yes"?"Anonymous":auth.currentUser.displayName,
+  name:anon.value==="yes"?"Anonymous":auth.currentUser.displayName,
+  likes:[],
   time:Date.now()
  });
- document.getElementById("teaText").value="";
-};
+ teaText.value="";
+}
 
 function loadFeed(){
  db.collection("posts").orderBy("time","desc")
@@ -189,21 +123,64 @@ function loadFeed(){
   s.forEach(d=>{
    const p=d.data();
    feed.innerHTML+=`
-    <div class="card">
-     <b>@${p.name}</b>
-     <p>${p.text}</p>
-     <small>${new Date(p.time).toLocaleString()}</small>
-    </div>`;
+   <div class="card">
+    <b>@${p.name}</b>
+    <p>${p.text}</p>
+    <small>
+     ❤️ ${p.likes.length}
+     <button onclick="like('${d.id}')">Like</button>
+     <button onclick="report('${d.id}')">🚩</button>
+    </small>
+   </div>`;
   });
  });
 }
 
+function like(id){
+ const ref=db.collection("posts").doc(id);
+ ref.update({
+  likes:firebase.firestore.FieldValue.arrayUnion(auth.currentUser.uid)
+ });
+}
+
+function report(id){
+ db.collection("reports").add({post:id,time:Date.now()});
+ alert("Reported");
+}
+
+function searchUser(){
+ const q=search.value.toLowerCase();
+ results.innerHTML="";
+ db.collection("users").get().then(s=>{
+  s.forEach(d=>{
+   if(d.data().name.toLowerCase().includes(q)){
+    results.innerHTML+=`
+     <div class="card">
+      <b>${d.data().name}</b>
+      <button onclick="follow('${d.id}')">Follow</button>
+     </div>`;
+   }
+  });
+ });
+}
+
+function follow(uid){
+ const me=auth.currentUser.uid;
+ db.collection("users").doc(me)
+ .update({following:firebase.firestore.FieldValue.arrayUnion(uid)});
+ db.collection("users").doc(uid)
+ .update({followers:firebase.firestore.FieldValue.arrayUnion(me)});
+}
+
 function loadProfile(){
  const u=auth.currentUser;
- document.getElementById("pName").innerText=u.displayName;
+ pName.innerText=u.displayName;
 
- db.collection("users").doc(u.uid).get().then(d=>{
-  if(d.exists) bio.value=d.data().bio||"";
+ db.collection("users").doc(u.uid)
+ .onSnapshot(d=>{
+  bio.value=d.data().bio||"";
+  followerCount.innerText=d.data().followers.length;
+  followingCount.innerText=d.data().following.length;
  });
 
  db.collection("posts").where("uid","==",u.uid)
@@ -212,7 +189,7 @@ function loadProfile(){
 
 function saveBio(){
  db.collection("users").doc(auth.currentUser.uid)
- .set({bio:bio.value},{merge:true});
+ .update({bio:bio.value});
  alert("Bio saved");
 }
 </script>
