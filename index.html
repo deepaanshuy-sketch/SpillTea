@@ -4,288 +4,187 @@
 <meta charset="UTF-8">
 <title>SpillTea ☕</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <style>
-:root{
- --bg:#121212;
- --card:#1e1e1e;
- --accent:#8b5e34;
- --muted:#aaa;
-}
-body{
- margin:0;
- background:var(--bg);
- color:#fff;
- font-family:system-ui;
-}
-header{
- padding:1rem;
- background:#1a1a1a;
- display:flex;
- justify-content:space-between;
- align-items:center;
- position:sticky;
- top:0;
- z-index:10;
-}
-button{
- background:var(--accent);
- border:none;
- color:#fff;
- padding:8px 14px;
- border-radius:8px;
- cursor:pointer;
-}
-.page{
- display:none;
- padding:1rem;
- padding-bottom:6rem;
-}
+:root{--bg:#121212;--card:#1e1e1e;--accent:#8b5e34;--muted:#aaa}
+body{margin:0;background:var(--bg);color:#fff;font-family:system-ui}
+header{padding:1rem;background:#1a1a1a;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0}
+button{background:var(--accent);border:none;color:#fff;padding:6px 12px;border-radius:8px;cursor:pointer}
+.page{display:none;padding:1rem;padding-bottom:6rem}
 .page.active{display:block}
-.card{
- background:var(--card);
- padding:1rem;
- border-radius:12px;
- margin-bottom:1rem;
-}
-textarea, select{
- width:100%;
- border-radius:8px;
- border:none;
- padding:.5rem;
-}
-nav{
- position:fixed;
- bottom:0;
- width:100%;
- background:#1a1a1a;
- display:flex;
- justify-content:space-around;
- padding:.7rem 0;
-}
-nav span{
- cursor:pointer;
- font-size:1.3rem;
-}
+.card{background:var(--card);padding:1rem;border-radius:12px;margin-bottom:1rem}
+textarea,select{width:100%;border-radius:8px;border:none;padding:.5rem}
+nav{position:fixed;bottom:0;width:100%;background:#1a1a1a;display:flex;justify-content:space-around;padding:.7rem 0}
+nav span{cursor:pointer;font-size:1.3rem}
 small{color:var(--muted)}
-hr{border:0;border-top:1px solid #333}
 </style>
 </head>
-
 <body>
 
 <header>
- <h3>SpillTea ☕</h3>
- <button id="authBtn">Login</button>
+<h3>SpillTea ☕</h3>
+<button id="authBtn">Login</button>
 </header>
 
-<!-- HOME -->
 <div id="home" class="page active">
- <div id="spillBox" style="display:none">
-  <textarea id="teaText" placeholder="Spill tea ☕"></textarea><br><br>
-  <select id="anon">
-   <option value="no">Public</option>
-   <option value="yes">Anonymous</option>
-  </select><br><br>
-  <button onclick="spillTea()">Spill ☕</button>
-  <hr>
- </div>
- <div id="feed"></div>
+<div id="spillBox" style="display:none">
+<textarea id="teaText" placeholder="Spill tea ☕"></textarea><br><br>
+<select id="anon"><option value="no">Public</option><option value="yes">Anonymous</option></select><br><br>
+<button onclick="spill()">Spill ☕</button><hr>
+</div>
+<div id="feed"></div>
 </div>
 
-<!-- FOLLOWERS TEA -->
 <div id="followers" class="page">
- <h3>❤️ Followers Tea</h3>
- <div id="followersFeed">
-  <div class="card">Follow system expanding soon ☕</div>
- </div>
+<h3>❤️ Followers Tea</h3>
+<div id="followersFeed"></div>
 </div>
 
-<!-- BROWSE -->
 <div id="browse" class="page">
- <h3>🔍 Browse Profiles</h3>
- <div id="usersList"></div>
+<h3>🔍 Browse</h3>
+<div id="usersList"></div>
 </div>
 
-<!-- GCS -->
-<div id="gcs" class="page">
- <h3>💬 Group Chats</h3>
- <div class="card">GC messages coming next 🔥</div>
-</div>
-
-<!-- PROFILE -->
 <div id="profile" class="page">
- <h3>👤 Your Profile</h3>
- <div id="profileCard"></div>
+<h3>👤 Profile</h3>
+<div id="profileCard"></div>
 </div>
 
 <nav>
- <span onclick="showPage('home')">🏠</span>
- <span onclick="showPage('followers')">❤️</span>
- <span onclick="showPage('browse')">🔍</span>
- <span onclick="showPage('gcs')">💬</span>
- <span onclick="showPage('profile')">👤</span>
+<span onclick="show('home')">🏠</span>
+<span onclick="show('followers')">❤️</span>
+<span onclick="show('browse')">🔍</span>
+<span onclick="show('profile')">👤</span>
 </nav>
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-// 🔥 Firebase init
 firebase.initializeApp({
- apiKey: "AIzaSyBsCftGcy-dH8RxxP2UxKoGG4DapRHHASo",
- authDomain: "spilltea-54aa8.firebaseapp.com",
- projectId: "spilltea-54aa8"
+ apiKey:"AIzaSyBsCftGcy-dH8RxxP2UxKoGG4DapRHHASo",
+ authDomain:"spilltea-54aa8.firebaseapp.com",
+ projectId:"spilltea-54aa8"
 });
 
-const auth = firebase.auth();
-const db = firebase.firestore();
-const provider = new firebase.auth.GoogleAuthProvider();
+const auth=firebase.auth(), db=firebase.firestore();
+const provider=new firebase.auth.GoogleAuthProvider();
+let currentUser=null;
 
-/* Navigation */
-function showPage(id){
- document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
- document.getElementById(id).classList.add("active");
+function show(id){
+ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+ document.getElementById(id).classList.add('active');
 }
 
-/* Auth button */
-const authBtn = document.getElementById("authBtn");
-const spillBox = document.getElementById("spillBox");
-
-auth.onAuthStateChanged(user=>{
- if(user){
-  authBtn.innerText="Logout";
-  spillBox.style.display="block";
-  initUser(user);
-  loadProfile(user);
- }else{
-  authBtn.innerText="Login";
-  spillBox.style.display="none";
- }
- loadFeed(); // always load (fix reload issue)
+auth.onAuthStateChanged(u=>{
+ currentUser=u;
+ authBtn.innerText=u?"Logout":"Login";
+ spillBox.style.display=u?"block":"none";
+ if(u){initUser(u);loadProfile();}
+ loadFollowersTea();
 });
 
-authBtn.onclick=()=>{
- auth.currentUser ? auth.signOut() : auth.signInWithPopup(provider);
-};
+authBtn.onclick=()=>currentUser?auth.signOut():auth.signInWithPopup(provider);
 
-/* Init user + username */
-function initUser(user){
- const ref = db.collection("users").doc(user.uid);
- ref.get().then(doc=>{
-  if(!doc.exists){
-   const username = "tea" + Math.floor(1000 + Math.random()*9000);
-   ref.set({
-    username,
-    email:user.email,
-    followers:0
-   });
+/* INIT USER */
+function initUser(u){
+ const ref=db.collection("users").doc(u.uid);
+ ref.get().then(d=>{
+  if(!d.exists){
+   ref.set({username:"tea"+Math.floor(Math.random()*10000)});
+   db.collection("follows").doc(u.uid).set({following:[]});
   }
  });
 }
 
-/* Spill Tea */
-function spillTea(){
- if(!auth.currentUser) return alert("Login first");
- const text = teaText.value.trim();
- if(!text) return;
-
+/* SPILL */
+function spill(){
+ if(!currentUser)return alert("Login first");
+ const t=teaText.value.trim(); if(!t)return;
  db.collection("posts").add({
-  text,
-  uid: auth.currentUser.uid,
-  name: anon.value==="yes" ? "Anonymous" : "@"+auth.currentUser.uid.slice(0,5),
-  likes: [],
-  time: Date.now()
+  text:t, uid:currentUser.uid,
+  name: anon.value==="yes"?"Anonymous":"@"+currentUser.uid.slice(0,5),
+  time:Date.now()
  });
-
  teaText.value="";
 }
 
-/* Feed */
-function loadFeed(){
- db.collection("posts")
- .orderBy("time","desc")
- .onSnapshot(snap=>{
-  feed.innerHTML="";
-  snap.forEach(doc=>{
-   const p = doc.data();
-   feed.innerHTML += `
-    <div class="card">
-     <b>${p.name}</b>
-     <p>${p.text}</p>
-     <small>${new Date(p.time).toLocaleString()}</small><br><br>
-     <button onclick="likePost('${doc.id}')">❤️ ${p.likes.length}</button>
-     <button onclick="reportPost('${doc.id}')">🚩</button>
-    </div>
-   `;
-  });
+/* FEED (RELOAD SAFE) */
+db.collection("posts").orderBy("time","desc")
+.onSnapshot(s=>{
+ feed.innerHTML="";
+ s.forEach(d=>{
+  const p=d.data();
+  feed.innerHTML+=`
+  <div class="card">
+   <b>${p.name}</b>
+   <p>${p.text}</p>
+   <small>${new Date(p.time).toLocaleString()}</small>
+  </div>`;
  });
-}
+});
 
-/* Like */
-function likePost(id){
- if(!auth.currentUser) return;
- const ref = db.collection("posts").doc(id);
+/* FOLLOW SYSTEM */
+function follow(uid){
+ const ref=db.collection("follows").doc(currentUser.uid);
  ref.get().then(d=>{
-  const likes = d.data().likes || [];
-  const uid = auth.currentUser.uid;
-  ref.update({
-   likes: likes.includes(uid)
-    ? likes.filter(x=>x!==uid)
-    : [...likes, uid]
+  const f=d.data().following||[];
+  ref.update({following:f.includes(uid)?f.filter(x=>x!==uid):[...f,uid]});
+ });
+}
+
+/* FOLLOWERS TEA */
+function loadFollowersTea(){
+ if(!currentUser){followersFeed.innerHTML="Login to see followers tea";return;}
+ db.collection("follows").doc(currentUser.uid).get().then(d=>{
+  const f=d.data()?.following||[];
+  if(f.length===0){followersFeed.innerHTML="<div class='card'>No follows yet</div>";return;}
+  db.collection("posts").where("uid","in",f).onSnapshot(s=>{
+   followersFeed.innerHTML="";
+   s.forEach(d=>{
+    const p=d.data();
+    followersFeed.innerHTML+=`<div class='card'><b>${p.name}</b><p>${p.text}</p></div>`;
+   });
   });
  });
 }
 
-/* Report */
-function reportPost(id){
- db.collection("reports").add({
-  postId:id,
-  time:Date.now()
+/* BROWSE */
+db.collection("users").onSnapshot(s=>{
+ usersList.innerHTML="";
+ s.forEach(d=>{
+  const u=d.data();
+  if(currentUser&&d.id===currentUser.uid)return;
+  usersList.innerHTML+=`
+  <div class="card">
+   @${u.username}
+   ${currentUser?`<button onclick="follow('${d.id}')">Follow</button>`:""}
+  </div>`;
  });
- alert("Reported");
-}
+});
 
-/* Browse users */
-function loadUsers(){
- db.collection("users").onSnapshot(snap=>{
-  usersList.innerHTML="";
-  snap.forEach(d=>{
-   usersList.innerHTML += `
-    <div class="card">@${d.data().username}</div>
-   `;
-  });
- });
-}
-loadUsers();
-
-/* Profile page (followers + posts count) */
-function loadProfile(user){
- const profileCard = document.getElementById("profileCard");
-
- // Posts count
- db.collection("posts")
- .where("uid","==",user.uid)
- .onSnapshot(snap=>{
-  const postCount = snap.size;
-
-  db.collection("users").doc(user.uid).get().then(u=>{
-   const data = u.data();
-   profileCard.innerHTML = `
+/* PROFILE COUNTS (FIXED) */
+function loadProfile(){
+ const uid=currentUser.uid;
+ db.collection("posts").where("uid","==",uid).get().then(p=>{
+  const postCount=p.size;
+  db.collection("follows").get().then(f=>{
+   let followers=0;
+   f.forEach(doc=>{
+    if(doc.data().following?.includes(uid))followers++;
+   });
+   db.collection("users").doc(uid).get().then(u=>{
+    profileCard.innerHTML=`
     <div class="card">
-     <b>@${data.username}</b><br>
-     <small>${user.email}</small><hr>
-     <b>${data.followers || 0}</b> Followers<br>
-     <b>${postCount}</b> Posts Uploaded<br><br>
-     <button onclick="auth.signOut()">Logout</button>
-    </div>
-   `;
+     <b>@${u.data().username}</b><br>
+     <small>${currentUser.email}</small><hr>
+     <b>${followers}</b> Followers<br>
+     <b>${postCount}</b> Posts
+    </div>`;
+   });
   });
  });
 }
 </script>
-
 </body>
-</html>
+ </html>
