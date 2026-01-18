@@ -4,187 +4,218 @@
 <meta charset="UTF-8">
 <title>SpillTea ☕</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <style>
-:root{--bg:#121212;--card:#1e1e1e;--accent:#8b5e34;--muted:#aaa}
-body{margin:0;background:var(--bg);color:#fff;font-family:system-ui}
-header{padding:1rem;background:#1a1a1a;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0}
-button{background:var(--accent);border:none;color:#fff;padding:6px 12px;border-radius:8px;cursor:pointer}
-.page{display:none;padding:1rem;padding-bottom:6rem}
-.page.active{display:block}
-.card{background:var(--card);padding:1rem;border-radius:12px;margin-bottom:1rem}
-textarea,select{width:100%;border-radius:8px;border:none;padding:.5rem}
-nav{position:fixed;bottom:0;width:100%;background:#1a1a1a;display:flex;justify-content:space-around;padding:.7rem 0}
-nav span{cursor:pointer;font-size:1.3rem}
-small{color:var(--muted)}
+:root{
+ --bg:#121212;
+ --card:#1e1e1e;
+ --accent:#8b5e34;
+}
+body{
+ margin:0;
+ background:var(--bg);
+ color:#fff;
+ font-family:system-ui;
+}
+header{
+ padding:1rem;
+ background:#1a1a1a;
+ display:flex;
+ justify-content:space-between;
+ align-items:center;
+ position:sticky;
+ top:0;
+ z-index:10;
+}
+button{
+ background:var(--accent);
+ border:none;
+ color:#fff;
+ padding:8px 14px;
+ border-radius:8px;
+ cursor:pointer;
+}
+.container{
+ padding:1rem;
+ padding-bottom:6rem;
+}
+.card{
+ background:var(--card);
+ padding:1rem;
+ border-radius:12px;
+ margin-bottom:1rem;
+}
+textarea,input{
+ width:100%;
+ border-radius:8px;
+ border:none;
+ padding:.6rem;
+ margin-bottom:.5rem;
+}
+nav{
+ position:fixed;
+ bottom:0;
+ width:100%;
+ background:#1a1a1a;
+ display:flex;
+ justify-content:space-around;
+ padding:.7rem 0;
+}
+nav span{cursor:pointer}
+small{color:#aaa}
+.hidden{display:none}
 </style>
 </head>
+
 <body>
 
 <header>
-<h3>SpillTea ☕</h3>
-<button id="authBtn">Login</button>
+ <h3>SpillTea ☕</h3>
+ <button id="authBtn">Login</button>
 </header>
 
-<div id="home" class="page active">
-<div id="spillBox" style="display:none">
-<textarea id="teaText" placeholder="Spill tea ☕"></textarea><br><br>
-<select id="anon"><option value="no">Public</option><option value="yes">Anonymous</option></select><br><br>
-<button onclick="spill()">Spill ☕</button><hr>
-</div>
-<div id="feed"></div>
+<div class="container">
+
+<!-- HOME -->
+<div id="homePage">
+ <div id="spillBox" class="card hidden">
+  <textarea id="teaText" placeholder="Spill tea ☕ (no personal info)"></textarea>
+  <select id="anon">
+   <option value="no">Public</option>
+   <option value="yes">Anonymous</option>
+  </select>
+  <button id="spillBtn">Spill</button>
+ </div>
+ <div id="feed"></div>
 </div>
 
-<div id="followers" class="page">
-<h3>❤️ Followers Tea</h3>
-<div id="followersFeed"></div>
+<!-- FOLLOWERS TEA -->
+<div id="followersPage" class="hidden">
+ <h3>Followers’ Tea 🍵</h3>
+ <p><small>Same feed for now</small></p>
 </div>
 
-<div id="browse" class="page">
-<h3>🔍 Browse</h3>
-<div id="usersList"></div>
+<!-- BROWSE -->
+<div id="browsePage" class="hidden">
+ <input id="searchUser" placeholder="Search user...">
+ <div id="searchResult"></div>
 </div>
 
-<div id="profile" class="page">
-<h3>👤 Profile</h3>
-<div id="profileCard"></div>
+<!-- GCS -->
+<div id="gcPage" class="hidden">
+ <h3>Group Chats 💬</h3>
+ <p><small>Coming soon</small></p>
+</div>
+
+<!-- PROFILE -->
+<div id="profilePage" class="hidden">
+ <h3 id="pName"></h3>
+ <textarea id="bio" placeholder="Your bio"></textarea>
+ <button onclick="saveBio()">Save Bio</button>
+ <p>Posts: <b id="postCount">0</b></p>
+ <p>Followers: <b id="followerCount">0</b></p>
+</div>
+
 </div>
 
 <nav>
-<span onclick="show('home')">🏠</span>
-<span onclick="show('followers')">❤️</span>
-<span onclick="show('browse')">🔍</span>
-<span onclick="show('profile')">👤</span>
+ <span onclick="showPage('home')">🏠</span>
+ <span onclick="showPage('followers')">🍵</span>
+ <span onclick="showPage('browse')">🔍</span>
+ <span onclick="showPage('gc')">💬</span>
+ <span onclick="showPage('profile')">👤</span>
 </nav>
 
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
 firebase.initializeApp({
- apiKey:"AIzaSyBsCftGcy-dH8RxxP2UxKoGG4DapRHHASo",
- authDomain:"spilltea-54aa8.firebaseapp.com",
- projectId:"spilltea-54aa8"
+ apiKey: "AIzaSyBsCftGcy-dH8RxxP2UxKoGG4DapRHHASo",
+ authDomain: "spilltea-54aa8.firebaseapp.com",
+ projectId: "spilltea-54aa8"
 });
 
-const auth=firebase.auth(), db=firebase.firestore();
-const provider=new firebase.auth.GoogleAuthProvider();
-let currentUser=null;
+const auth = firebase.auth();
+const db = firebase.firestore();
+const provider = new firebase.auth.GoogleAuthProvider();
 
-function show(id){
- document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
- document.getElementById(id).classList.add('active');
-}
+const authBtn = document.getElementById("authBtn");
+const spillBox = document.getElementById("spillBox");
+const feed = document.getElementById("feed");
 
-auth.onAuthStateChanged(u=>{
- currentUser=u;
- authBtn.innerText=u?"Logout":"Login";
- spillBox.style.display=u?"block":"none";
- if(u){initUser(u);loadProfile();}
- loadFollowersTea();
-});
-
-authBtn.onclick=()=>currentUser?auth.signOut():auth.signInWithPopup(provider);
-
-/* INIT USER */
-function initUser(u){
- const ref=db.collection("users").doc(u.uid);
- ref.get().then(d=>{
-  if(!d.exists){
-   ref.set({username:"tea"+Math.floor(Math.random()*10000)});
-   db.collection("follows").doc(u.uid).set({following:[]});
-  }
+function showPage(p){
+ ["home","followers","browse","gc","profile"].forEach(x=>{
+  document.getElementById(x+"Page").classList.add("hidden");
  });
+ document.getElementById(p+"Page").classList.remove("hidden");
 }
 
-/* SPILL */
-function spill(){
- if(!currentUser)return alert("Login first");
- const t=teaText.value.trim(); if(!t)return;
+auth.onAuthStateChanged(user=>{
+ if(user){
+  authBtn.innerText="Logout";
+  spillBox.classList.remove("hidden");
+  loadFeed();
+  loadProfile();
+ }else{
+  authBtn.innerText="Login";
+  spillBox.classList.add("hidden");
+ }
+});
+
+authBtn.onclick=()=>{
+ auth.currentUser ? auth.signOut() : auth.signInWithPopup(provider);
+};
+
+document.getElementById("spillBtn").onclick=()=>{
+ const text=document.getElementById("teaText").value.trim();
+ if(!text) return;
+
  db.collection("posts").add({
-  text:t, uid:currentUser.uid,
-  name: anon.value==="yes"?"Anonymous":"@"+currentUser.uid.slice(0,5),
+  uid:auth.currentUser.uid,
+  text,
+  name:document.getElementById("anon").value==="yes"?"Anonymous":auth.currentUser.displayName,
   time:Date.now()
  });
- teaText.value="";
-}
+ document.getElementById("teaText").value="";
+};
 
-/* FEED (RELOAD SAFE) */
-db.collection("posts").orderBy("time","desc")
-.onSnapshot(s=>{
- feed.innerHTML="";
- s.forEach(d=>{
-  const p=d.data();
-  feed.innerHTML+=`
-  <div class="card">
-   <b>${p.name}</b>
-   <p>${p.text}</p>
-   <small>${new Date(p.time).toLocaleString()}</small>
-  </div>`;
- });
-});
-
-/* FOLLOW SYSTEM */
-function follow(uid){
- const ref=db.collection("follows").doc(currentUser.uid);
- ref.get().then(d=>{
-  const f=d.data().following||[];
-  ref.update({following:f.includes(uid)?f.filter(x=>x!==uid):[...f,uid]});
- });
-}
-
-/* FOLLOWERS TEA */
-function loadFollowersTea(){
- if(!currentUser){followersFeed.innerHTML="Login to see followers tea";return;}
- db.collection("follows").doc(currentUser.uid).get().then(d=>{
-  const f=d.data()?.following||[];
-  if(f.length===0){followersFeed.innerHTML="<div class='card'>No follows yet</div>";return;}
-  db.collection("posts").where("uid","in",f).onSnapshot(s=>{
-   followersFeed.innerHTML="";
-   s.forEach(d=>{
-    const p=d.data();
-    followersFeed.innerHTML+=`<div class='card'><b>${p.name}</b><p>${p.text}</p></div>`;
-   });
-  });
- });
-}
-
-/* BROWSE */
-db.collection("users").onSnapshot(s=>{
- usersList.innerHTML="";
- s.forEach(d=>{
-  const u=d.data();
-  if(currentUser&&d.id===currentUser.uid)return;
-  usersList.innerHTML+=`
-  <div class="card">
-   @${u.username}
-   ${currentUser?`<button onclick="follow('${d.id}')">Follow</button>`:""}
-  </div>`;
- });
-});
-
-/* PROFILE COUNTS (FIXED) */
-function loadProfile(){
- const uid=currentUser.uid;
- db.collection("posts").where("uid","==",uid).get().then(p=>{
-  const postCount=p.size;
-  db.collection("follows").get().then(f=>{
-   let followers=0;
-   f.forEach(doc=>{
-    if(doc.data().following?.includes(uid))followers++;
-   });
-   db.collection("users").doc(uid).get().then(u=>{
-    profileCard.innerHTML=`
+function loadFeed(){
+ db.collection("posts").orderBy("time","desc")
+ .onSnapshot(s=>{
+  feed.innerHTML="";
+  s.forEach(d=>{
+   const p=d.data();
+   feed.innerHTML+=`
     <div class="card">
-     <b>@${u.data().username}</b><br>
-     <small>${currentUser.email}</small><hr>
-     <b>${followers}</b> Followers<br>
-     <b>${postCount}</b> Posts
+     <b>@${p.name}</b>
+     <p>${p.text}</p>
+     <small>${new Date(p.time).toLocaleString()}</small>
     </div>`;
-   });
   });
  });
+}
+
+function loadProfile(){
+ const u=auth.currentUser;
+ document.getElementById("pName").innerText=u.displayName;
+
+ db.collection("users").doc(u.uid).get().then(d=>{
+  if(d.exists) bio.value=d.data().bio||"";
+ });
+
+ db.collection("posts").where("uid","==",u.uid)
+ .onSnapshot(s=>postCount.innerText=s.size);
+}
+
+function saveBio(){
+ db.collection("users").doc(auth.currentUser.uid)
+ .set({bio:bio.value},{merge:true});
+ alert("Bio saved");
 }
 </script>
+
 </body>
- </html>
+</html>
