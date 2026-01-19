@@ -1,241 +1,153 @@
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html><html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>SpillTea ☕</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<style>
-:root{
- --bg:#0f0f0f;--card:#1c1c1c;--accent:#c08457;--muted:#aaa;
-}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:#fff;font-family:system-ui}
-
-header{
- position:sticky;top:0;z-index:10;
- background:#141414;padding:1rem;
- display:flex;justify-content:space-between;align-items:center
-}
-
-button{
- background:var(--accent);border:none;color:#fff;
- padding:8px 14px;border-radius:8px;cursor:pointer
-}
-
-.container{padding:1rem;padding-bottom:5rem}
-
-.card{
- background:var(--card);border-radius:14px;
- padding:1rem;margin-bottom:1rem
-}
-
-textarea,input{
- width:100%;border-radius:8px;border:none;
- padding:.6rem;background:#222;color:#fff
-}
-
-small{color:var(--muted)}
-
-.actions{display:flex;gap:1rem;margin-top:.5rem}
-
-.nav{
- position:fixed;bottom:0;width:100%;
- background:#141414;display:flex;
- justify-content:space-around;padding:.7rem 0
-}
-.nav span{
- opacity:.5;cursor:pointer;font-size:1.2rem
-}
-.nav span.active{opacity:1}
-
-.hidden{display:none}
-
-/* modal */
-.modal{
- position:fixed;inset:0;
- background:rgba(0,0,0,.7);
- display:flex;align-items:center;justify-content:center;z-index:20
-}
-.modal .box{
- background:#1e1e1e;padding:1rem;
- border-radius:12px;width:90%;max-width:380px
-}
-</style>
-</head>
-
-<body>
-
-<header>
- <b>SpillTea ☕</b>
- <button id="authBtn">Login</button>
-</header>
-
-<div class="container">
-
-<div id="spillBox" class="card hidden">
- <textarea id="teaText" placeholder="Spill your tea ☕"></textarea><br><br>
- <button id="spillBtn">Spill</button>
-</div>
-
-<div id="home"></div>
-<div id="notifications" class="hidden"></div>
-<div id="groups" class="hidden"></div>
-<div id="profile" class="hidden"></div>
-
-</div>
-
-<div class="nav">
- <span class="active" data-page="home">🏠</span>
- <span data-page="notifications">🔔</span>
- <span data-page="groups">💬</span>
- <span data-page="profile">👤</span>
-</div>
-
-<div id="profileModal" class="modal hidden">
- <div class="box">
-  <h3>Complete Profile</h3><br>
-  <input id="username" placeholder="Username"><br><br>
-  <input id="bio" placeholder="Bio"><br><br>
-  <input id="dob" type="date"><br><br>
-  <button id="saveProfileBtn">Save</button>
- </div>
-</div>
-
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
-<script>
-// 🔥 Firebase
+  <meta charset="UTF-8" />
+  <title>SpillTea ☕</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />  <!-- Firebase -->  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>  <style>
+    body{margin:0;font-family:system-ui;background:#0e0e11;color:#fff}
+    button,input,textarea{background:#1c1c22;color:#fff;border:none;border-radius:8px;padding:10px}
+    button{cursor:pointer}
+    .hidden{display:none}
+    .card{background:#16161d;padding:15px;border-radius:14px;margin:10px}
+    nav{display:flex;gap:10px;position:fixed;bottom:0;width:100%;background:#111;padding:10px}
+    nav button{flex:1}
+    textarea{width:100%;resize:none}
+    input{width:100%}
+  </style></head>
+<body><!-- AUTH --><div id="auth" class="card">
+  <h2>SpillTea ☕</h2>
+  <input id="email" placeholder="Email" />
+  <input id="password" type="password" placeholder="Password" />
+  <button id="loginBtn">Login</button>
+  <button id="signupBtn">Signup</button>
+</div><!-- PROFILE MODAL --><div id="profileModal" class="card hidden">
+  <h3>Complete Profile</h3>
+  <input id="username" placeholder="Username" />
+  <textarea id="bio" placeholder="Bio"></textarea>
+  <input id="dob" type="date" />
+  <button id="saveProfile">Save</button>
+</div><!-- HOME --><div id="home" class="hidden">
+  <div class="card">
+    <textarea id="teaInput" placeholder="Spill your tea ☕"></textarea>
+    <button id="postTea">Spill</button>
+  </div>
+  <div id="feed"></div>
+</div><!-- PROFILE --><div id="profile" class="hidden card"></div><nav class="hidden" id="nav">
+  <button onclick="showPage('home')">Home</button>
+  <button onclick="showPage('profile')">Profile</button>
+  <button onclick="logout()">Logout</button>
+</nav><script>
+// 🔥 FIREBASE CONFIG (ADD YOURS)
 firebase.initializeApp({
- apiKey: "AIzaSyBsCftGcy-dH8RxxP2UxKoGG4DapRHHASo",
- authDomain: "spilltea-54aa8.firebaseapp.com",
- projectId: "spilltea-54aa8"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_DOMAIN",
+  projectId: "YOUR_PROJECT_ID"
 });
 
-const auth = firebase.auth();
-const db = firebase.firestore();
-const provider = new firebase.auth.GoogleAuthProvider();
+const auth=firebase.auth();
+const db=firebase.firestore();
 
 // DOM
-const authBtn = document.getElementById("authBtn");
-const spillBox = document.getElementById("spillBox");
-const spillBtn = document.getElementById("spillBtn");
-const teaText = document.getElementById("teaText");
+const authBox=document.getElementById('auth');
+const home=document.getElementById('home');
+const profile=document.getElementById('profile');
+const nav=document.getElementById('nav');
+const modal=document.getElementById('profileModal');
 
-const home = document.getElementById("home");
-const notifications = document.getElementById("notifications");
-const groups = document.getElementById("groups");
-const profile = document.getElementById("profile");
+const email=document.getElementById('email');
+const password=document.getElementById('password');
+const username=document.getElementById('username');
+const bio=document.getElementById('bio');
+const dob=document.getElementById('dob');
 
-const modal = document.getElementById("profileModal");
-const saveProfileBtn = document.getElementById("saveProfileBtn");
+const teaInput=document.getElementById('teaInput');
+const feed=document.getElementById('feed');
 
-let currentUser = null;
+let currentUser=null;
 
 // AUTH
+loginBtn.onclick=()=>auth.signInWithEmailAndPassword(email.value,password.value);
+signupBtn.onclick=()=>auth.createUserWithEmailAndPassword(email.value,password.value);
+
+// AUTH STATE
 auth.onAuthStateChanged(async user=>{
- if(user){
-  currentUser = user;
-  authBtn.innerText = "Logout";
-  spillBox.classList.remove("hidden");
+ if(!user){
+  authBox.classList.remove('hidden');
+  home.classList.add('hidden');
+  nav.classList.add('hidden');
+  return;
+ }
+ currentUser=user;
+ authBox.classList.add('hidden');
+ nav.classList.remove('hidden');
 
-  const doc = await db.collection("users").doc(user.uid).get();
-  if(!doc.exists){
-   modal.classList.remove("hidden");
-  }
-
-  loadFeed();
-  renderProfile();
+ const doc=await db.collection('users').doc(user.uid).get();
+ if(!doc.exists){
+  modal.classList.remove('hidden');
  }else{
-  currentUser = null;
-  authBtn.innerText = "Login";
-  spillBox.classList.add("hidden");
+  showPage('home');
+  loadFeed();
  }
 });
 
-// LOGIN FIX ✅
-authBtn.onclick = ()=>{
- auth.currentUser
-  ? auth.signOut()
-  : auth.signInWithPopup(provider);
-};
-
 // SAVE PROFILE
-saveProfileBtn.onclick = async ()=>{
- const u = username.value.trim();
- if(!u) return alert("Username required");
-
- await db.collection("users").doc(currentUser.uid).set({
-  username: u,
-  bio: bio.value,
-  dob: dob.value,
-  followers: 0,
-  posts: 0
- },{merge:true});
-
- modal.classList.add("hidden");
-};
-
-// POST
-spillBtn.onclick = async ()=>{
- const text = teaText.value.trim();
- if(!text) return;
-
- await db.collection("posts").add({
-  text,
-  uid: currentUser.uid,
-  time: Date.now()
+saveProfile.onclick=async()=>{
+ if(!username.value.trim()) return alert('Username required');
+ await db.collection('users').doc(currentUser.uid).set({
+  username:username.value,
+  bio:bio.value,
+  dob:dob.value,
+  followers:0,
+  posts:0
  });
-
- teaText.value="";
+ modal.classList.add('hidden');
+ showPage('home');
+ loadFeed();
 };
 
-// FEED
-function loadFeed(){
- db.collection("posts")
- .orderBy("time","desc")
- .onSnapshot(s=>{
-  home.innerHTML="";
-  s.forEach(d=>{
-   home.innerHTML+=`
-    <div class="card">
-     <p>${d.data().text}</p>
-     <small>${new Date(d.data().time).toLocaleString()}</small>
-    </div>`;
-  });
+// POST TEA
+postTea.onclick=async()=>{
+ if(!teaInput.value.trim()) return;
+ await db.collection('posts').add({
+  uid:currentUser.uid,
+  text:teaInput.value,
+  likes:[],
+  time:Date.now()
+ });
+ teaInput.value='';
+ loadFeed();
+};
+
+// LOAD FEED
+async function loadFeed(){
+ feed.innerHTML='';
+ const snap=await db.collection('posts').orderBy('time','desc').get();
+ snap.forEach(d=>{
+  const p=d.data();
+  const div=document.createElement('div');
+  div.className='card';
+  div.innerHTML=`<p>${p.text}</p><small>${p.likes.length} likes</small>`;
+  feed.appendChild(div);
  });
 }
 
-// PROFILE RENDER
-async function renderProfile(){
- const snap = await db.collection("users").doc(currentUser.uid).get();
- if(!snap.exists) return;
- const u = snap.data();
- profile.innerHTML = `
-  <div class="card">
-   <b>@${u.username}</b>
-   <p>${u.bio||""}</p>
-   <small>Posts: ${u.posts||0} · Followers: ${u.followers||0}</small>
-  </div>`;
+// PROFILE PAGE
+async function loadProfile(){
+ const doc=await db.collection('users').doc(currentUser.uid).get();
+ const u=doc.data();
+ profile.innerHTML=`
+  <h3>@${u.username}</h3>
+  <p>${u.bio||''}</p>
+  <p>Followers: ${u.followers}</p>
+  <p>Posts: ${u.posts}</p>`;
 }
 
-// NAV FIX ✅
-document.querySelectorAll(".nav span").forEach(tab=>{
- tab.onclick = ()=>{
-  document.querySelectorAll(".nav span").forEach(t=>t.classList.remove("active"));
-  tab.classList.add("active");
+function showPage(p){
+ home.classList.add('hidden');
+ profile.classList.add('hidden');
+ if(p==='home') home.classList.remove('hidden');
+ if(p==='profile'){ profile.classList.remove('hidden'); loadProfile(); }
+}
 
-  ["home","notifications","groups","profile"].forEach(p=>{
-   document.getElementById(p).classList.add("hidden");
-  });
-
-  document.getElementById(tab.dataset.page).classList.remove("hidden");
- };
-});
-</script>
-
-</body>
+function logout(){ auth.signOut(); }
+</script></body>
 </html>
