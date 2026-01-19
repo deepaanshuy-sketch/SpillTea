@@ -1,192 +1,243 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>SpillTea ☕</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-body{margin:0;background:#0f0f0f;color:#fff;font-family:system-ui}
-header,nav{background:#161616;padding:12px;display:flex;justify-content:space-between;align-items:center}
-button{background:#ffb703;border:none;padding:8px 14px;border-radius:20px;cursor:pointer}
-.page{display:none;padding:12px}
-.page.active{display:block}
-.card{background:#1e1e1e;padding:12px;border-radius:16px;margin:10px 0}
-textarea,input{width:100%;padding:10px;border-radius:10px;border:none;margin:6px 0}
-small{color:#aaa}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center}
-.modal-content{background:#1e1e1e;padding:20px;border-radius:16px;width:90%;max-width:400px}
-.like{cursor:pointer}
+:root{
+ --bg:#0f0f0f;--card:#1c1c1c;--accent:#c08457;--muted:#aaa;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:#fff;font-family:system-ui}
+header{
+ position:sticky;top:0;z-index:10;
+ background:#141414;padding:1rem;
+ display:flex;justify-content:space-between;align-items:center
+}
+button{
+ background:var(--accent);border:none;color:#fff;
+ padding:8px 14px;border-radius:8px;cursor:pointer
+}
+.container{padding:1rem;padding-bottom:5rem}
+.card{
+ background:var(--card);border-radius:14px;
+ padding:1rem;margin-bottom:1rem
+}
+textarea,input{
+ width:100%;border-radius:8px;border:none;
+ padding:.6rem;background:#222;color:#fff
+}
+small{color:var(--muted)}
+.actions{display:flex;gap:1rem;margin-top:.5rem}
+.nav{
+ position:fixed;bottom:0;width:100%;
+ background:#141414;display:flex;justify-content:space-around;padding:.7rem 0
+}
+.nav span{opacity:.6;cursor:pointer}
+.nav .active{opacity:1}
+.hidden{display:none}
+.modal{
+ position:fixed;inset:0;background:rgba(0,0,0,.7);
+ display:flex;align-items:center;justify-content:center;z-index:20
+}
+.modal .box{
+ background:#1e1e1e;padding:1rem;border-radius:12px;width:90%;max-width:400px
+}
+.comment{border-top:1px solid #333;padding-top:.5rem;margin-top:.5rem}
+.notif{border-bottom:1px solid #333;padding:.6rem 0}
 </style>
 </head>
-
 <body>
 
 <header>
-<b>☕ SpillTea</b>
-<button id="authBtn">Login</button>
+ <b>SpillTea ☕</b>
+ <button id="authBtn">Login</button>
 </header>
 
-<!-- HOME -->
-<div id="home" class="page active">
-<textarea id="teaText" placeholder="Spill tea… use @username"></textarea>
-<button id="spillBtn">Spill</button>
-<div id="feed"></div>
+<div class="container">
+
+<!-- SPILL -->
+<div id="spillBox" class="card hidden">
+ <textarea id="teaText" placeholder="Spill your tea ☕"></textarea><br><br>
+ <button id="spillBtn">Spill</button>
 </div>
 
-<!-- GCs -->
-<div id="gcs" class="page">
-<input id="gcName" placeholder="Group name">
-<button id="createGC">Create GC</button>
-<div id="gcList"></div>
-<div id="gcChat"></div>
-<input id="gcMsg" placeholder="Message">
-<button id="sendMsg">Send</button>
+<!-- PAGES -->
+<div id="home"></div>
+<div id="notifications" class="hidden"></div>
+<div id="groups" class="hidden"></div>
+<div id="profile" class="hidden"></div>
+
 </div>
 
-<!-- PROFILE -->
-<div id="profile" class="page">
-<p id="profileStats"></p>
+<!-- NAV -->
+<div class="nav">
+ <span onclick="showPage('home')" class="active">🏠</span>
+ <span onclick="showPage('notifications')">🔔</span>
+ <span onclick="showPage('groups')">💬</span>
+ <span onclick="showPage('profile')">👤</span>
 </div>
-
-<nav>
-<button onclick="go('home')">🏠</button>
-<button onclick="go('gcs')">💬</button>
-<button onclick="go('profile')">👤</button>
-</nav>
 
 <!-- PROFILE MODAL -->
-<div id="profileModal" class="modal" style="display:none">
-<div class="modal-content">
-<h3>Complete Profile</h3>
-<input id="username" placeholder="Username">
-<textarea id="bio" placeholder="Bio"></textarea>
-<input id="dob" type="date">
-<button onclick="saveProfile()">Save</button>
-</div>
+<div id="profileModal" class="modal hidden">
+ <div class="box">
+  <h3>Complete Profile</h3>
+  <input id="username" placeholder="Username"><br><br>
+  <input id="bio" placeholder="Bio"><br><br>
+  <input id="dob" type="date"><br><br>
+  <button onclick="saveProfile()">Save</button>
+ </div>
 </div>
 
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
 firebase.initializeApp({
- apiKey:"AIzaSyBsCftGcy-dH8RxxP2UxKoGG4DapRHHASo",
- authDomain:"spilltea-54aa8.firebaseapp.com",
- projectId:"spilltea-54aa8"
+ apiKey: "AIzaSyBsCftGcy-dH8RxxP2UxKoGG4DapRHHASo",
+ authDomain: "spilltea-54aa8.firebaseapp.com",
+ projectId: "spilltea-54aa8"
 });
 
-const auth=firebase.auth(), db=firebase.firestore();
-let me=null, currentGC=null;
+const auth=firebase.auth(),db=firebase.firestore();
+const provider=new firebase.auth.GoogleAuthProvider();
 
-const authBtn=authBtn=document.getElementById("authBtn");
-const feed=document.getElementById("feed");
+const authBtn=document.getElementById("authBtn");
+const spillBox=document.getElementById("spillBox");
+const home=document.getElementById("home");
+const notifBox=document.getElementById("notifications");
+const groups=document.getElementById("groups");
+const profile=document.getElementById("profile");
+const modal=document.getElementById("profileModal");
 
-auth.onAuthStateChanged(u=>{
- me=u;
- authBtn.innerText=u?"Logout":"Login";
- if(u){
-  checkProfile();
+let currentUser=null;
+
+auth.onAuthStateChanged(async user=>{
+ if(user){
+  currentUser=user;
+  authBtn.innerText="Logout";
+  spillBox.classList.remove("hidden");
+  await checkProfile();
   loadFeed();
-  loadGCs();
+  loadNotifications();
+ }else{
+  currentUser=null;
+  authBtn.innerText="Login";
+  spillBox.classList.add("hidden");
  }
 });
 
-authBtn.onclick=()=> me?auth.signOut():auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+authBtn.onclick=()=>auth.currentUser?auth.signOut():auth.signInWithRedirect(provider);
 
-function go(p){
- document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
- document.getElementById(p).classList.add("active");
-}
-
-function checkProfile(){
- db.collection("users").doc(me.uid).get().then(d=>{
-  if(!d.exists || !d.data().username){
-   profileModal.style.display="flex";
-  }
- });
+// PROFILE
+async function checkProfile(){
+ const ref=db.collection("users").doc(currentUser.uid);
+ const snap=await ref.get();
+ if(!snap.exists) modal.classList.remove("hidden");
 }
 
 function saveProfile(){
- db.collection("users").doc(me.uid).set({
+ db.collection("users").doc(currentUser.uid).set({
   username:username.value,
   bio:bio.value,
-  dob:dob.value
+  dob:dob.value,
+  followers:0,
+  posts:0
  });
- profileModal.style.display="none";
+ modal.classList.add("hidden");
 }
 
+// POST
 spillBtn.onclick=()=>{
- if(!me) return alert("Login first");
+ const text=teaText.value.trim();
+ if(!text) return;
  db.collection("posts").add({
-  text:teaText.value,
-  uid:me.uid,
-  likes:[],
-  time:Date.now()
+  text,uid:currentUser.uid,time:Date.now(),
+  likes:[],commentCount:0
  });
  teaText.value="";
 };
 
+// FEED
 function loadFeed(){
  db.collection("posts").orderBy("time","desc")
- .onSnapshot(s=>{
-  feed.innerHTML="";
-  s.forEach(d=>{
+ .onSnapshot(snap=>{
+  home.innerHTML="";
+  snap.forEach(d=>{
    const p=d.data();
-   feed.innerHTML+=`
+   const liked=p.likes.includes(currentUser.uid);
+   home.innerHTML+=`
    <div class="card">
     <p>${p.text}</p>
-    <span class="like" onclick="likePost('${d.id}')">
-     ❤️ ${p.likes.length}
-    </span>
+    <div class="actions">
+     <span onclick="toggleLike('${d.id}',${liked})">❤️ ${p.likes.length}</span>
+     <span onclick="openComments('${d.id}')">💬 ${p.commentCount||0}</span>
+    </div>
+    <div id="c-${d.id}"></div>
    </div>`;
   });
  });
 }
 
-function likePost(id){
+function toggleLike(id,liked){
  const ref=db.collection("posts").doc(id);
- ref.get().then(d=>{
-  const likes=d.data().likes||[];
-  const updated=likes.includes(me.uid)
-   ?likes.filter(x=>x!==me.uid)
-   :[...likes,me.uid];
-  ref.update({likes:updated});
+ ref.update({
+  likes: liked
+   ? firebase.firestore.FieldValue.arrayRemove(currentUser.uid)
+   : firebase.firestore.FieldValue.arrayUnion(currentUser.uid)
+ });
+ if(!liked){
+  db.collection("notifications").doc(currentUser.uid)
+  .collection("items").add({text:"Someone liked your tea ☕",time:Date.now()});
+ }
+}
+
+// COMMENTS
+function openComments(id){
+ const box=document.getElementById("c-"+id);
+ if(box.innerHTML) return box.innerHTML="";
+ box.innerHTML=`
+ <input placeholder="Write comment" onkeydown="if(event.key==='Enter')addComment('${id}',this)">
+ <div id="cl-${id}"></div>`;
+ db.collection("posts").doc(id).collection("comments")
+ .orderBy("time").onSnapshot(s=>{
+  const l=document.getElementById("cl-"+id);l.innerHTML="";
+  s.forEach(c=>l.innerHTML+=`<div class="comment">${c.data().text}</div>`);
  });
 }
 
-/* GCs */
-createGC.onclick=()=>{
- db.collection("groups").add({name:gcName.value,members:[me.uid]});
-};
+function addComment(id,input){
+ const text=input.value.trim(); if(!text) return;
+ db.collection("posts").doc(id).collection("comments").add({
+  text,time:Date.now(),uid:currentUser.uid
+ });
+ db.collection("posts").doc(id)
+ .update({commentCount:firebase.firestore.FieldValue.increment(1)});
+ input.value="";
+}
 
-function loadGCs(){
- db.collection("groups")
- .where("members","array-contains",me.uid)
+// NOTIFICATIONS
+function loadNotifications(){
+ db.collection("notifications").doc(currentUser.uid)
+ .collection("items").orderBy("time","desc")
  .onSnapshot(s=>{
-  gcList.innerHTML="";
-  s.forEach(d=>{
-   gcList.innerHTML+=`<button onclick="openGC('${d.id}')">${d.data().name}</button>`;
-  });
+  notifBox.innerHTML="";
+  s.forEach(n=>notifBox.innerHTML+=
+   `<div class="notif">${n.data().text}</div>`);
  });
 }
 
-function openGC(id){
- currentGC=id;
- db.collection("groups").doc(id).collection("messages")
- .orderBy("time")
- .onSnapshot(s=>{
-  gcChat.innerHTML="";
-  s.forEach(m=>gcChat.innerHTML+=`<div class="card">${m.data().text}</div>`);
+// NAV
+function showPage(p){
+ ["home","notifications","groups","profile"].forEach(id=>{
+  document.getElementById(id).classList.add("hidden");
  });
+ document.getElementById(p).classList.remove("hidden");
+ document.querySelectorAll(".nav span").forEach(s=>s.classList.remove("active"));
 }
-
-sendMsg.onclick=()=>{
- db.collection("groups").doc(currentGC)
- .collection("messages").add({text:gcMsg.value,time:Date.now()});
- gcMsg.value="";
-};
 </script>
-
 </body>
- </html>
+</html>
