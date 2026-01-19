@@ -4,16 +4,18 @@
 <meta charset="UTF-8">
 <title>SpillTea ☕</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-
 <style>
 body{margin:0;background:#0f0f0f;color:#fff;font-family:system-ui}
 header,nav{background:#161616;padding:12px;display:flex;justify-content:space-between;align-items:center}
 button{background:#ffb703;border:none;padding:8px 14px;border-radius:20px;cursor:pointer}
 .page{display:none;padding:12px}
 .page.active{display:block}
-.card{background:#1e1e1e;padding:12px;border-radius:14px;margin:10px 0}
-textarea,input{width:100%;padding:10px;border-radius:10px;border:none;margin-bottom:8px}
+.card{background:#1e1e1e;padding:12px;border-radius:16px;margin:10px 0}
+textarea,input{width:100%;padding:10px;border-radius:10px;border:none;margin:6px 0}
 small{color:#aaa}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center}
+.modal-content{background:#1e1e1e;padding:20px;border-radius:16px;width:90%;max-width:400px}
+.like{cursor:pointer}
 </style>
 </head>
 
@@ -26,209 +28,136 @@ small{color:#aaa}
 
 <!-- HOME -->
 <div id="home" class="page active">
-<textarea id="teaText" placeholder="Spill tea..."></textarea>
+<textarea id="teaText" placeholder="Spill tea… use @username"></textarea>
 <button id="spillBtn">Spill</button>
 <div id="feed"></div>
-</div>
-
-<!-- FOLLOWERS -->
-<div id="followers" class="page">
-<h3>Followers Tea</h3>
-<div id="followersFeed"></div>
-</div>
-
-<!-- BROWSE -->
-<div id="browse" class="page">
-<input id="searchUid" placeholder="Search user UID">
-<button id="followBtn">Follow</button>
 </div>
 
 <!-- GCs -->
 <div id="gcs" class="page">
 <input id="gcName" placeholder="Group name">
-<button id="createGcBtn">Create GC</button>
+<button id="createGC">Create GC</button>
 <div id="gcList"></div>
 <div id="gcChat"></div>
+<input id="gcMsg" placeholder="Message">
+<button id="sendMsg">Send</button>
 </div>
 
 <!-- PROFILE -->
 <div id="profile" class="page">
-<input id="username" placeholder="Username">
-<textarea id="bio" placeholder="Your bio"></textarea>
-<button id="saveProfileBtn">Save</button>
-<p id="stats"></p>
-<div id="myPosts"></div>
+<p id="profileStats"></p>
 </div>
 
 <nav>
 <button onclick="go('home')">🏠</button>
-<button onclick="go('followers')">👥</button>
-<button onclick="go('browse')">🔍</button>
 <button onclick="go('gcs')">💬</button>
 <button onclick="go('profile')">👤</button>
 </nav>
+
+<!-- PROFILE MODAL -->
+<div id="profileModal" class="modal" style="display:none">
+<div class="modal-content">
+<h3>Complete Profile</h3>
+<input id="username" placeholder="Username">
+<textarea id="bio" placeholder="Bio"></textarea>
+<input id="dob" type="date">
+<button onclick="saveProfile()">Save</button>
+</div>
+</div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-/* 🔥 Firebase */
 firebase.initializeApp({
  apiKey:"AIzaSyBsCftGcy-dH8RxxP2UxKoGG4DapRHHASo",
  authDomain:"spilltea-54aa8.firebaseapp.com",
  projectId:"spilltea-54aa8"
 });
 
-const auth = firebase.auth();
-const db = firebase.firestore();
-const provider = new firebase.auth.GoogleAuthProvider();
+const auth=firebase.auth(), db=firebase.firestore();
+let me=null, currentGC=null;
 
-let me = null;
-let currentGC = null;
+const authBtn=authBtn=document.getElementById("authBtn");
+const feed=document.getElementById("feed");
 
-/* 🔗 DOM */
-const authBtn = document.getElementById("authBtn");
-const spillBtn = document.getElementById("spillBtn");
-const teaText = document.getElementById("teaText");
-const feed = document.getElementById("feed");
-const followersFeed = document.getElementById("followersFeed");
-const searchUid = document.getElementById("searchUid");
-const followBtn = document.getElementById("followBtn");
-const gcName = document.getElementById("gcName");
-const createGcBtn = document.getElementById("createGcBtn");
-const gcList = document.getElementById("gcList");
-const gcChat = document.getElementById("gcChat");
-const username = document.getElementById("username");
-const bio = document.getElementById("bio");
-const stats = document.getElementById("stats");
-const myPosts = document.getElementById("myPosts");
-
-/* 🔐 AUTH STATE */
-auth.onAuthStateChanged(user=>{
- me = user;
- authBtn.innerText = user ? "Logout" : "Login";
- if(user){
+auth.onAuthStateChanged(u=>{
+ me=u;
+ authBtn.innerText=u?"Logout":"Login";
+ if(u){
+  checkProfile();
   loadFeed();
-  loadFollowersFeed();
-  loadProfile();
   loadGCs();
  }
 });
 
-/* 🔐 LOGIN / LOGOUT (FIXED) */
-authBtn.onclick = ()=>{
- if(me){
-  auth.signOut();
- }else{
-  auth.signInWithPopup(provider);
- }
-};
+authBtn.onclick=()=> me?auth.signOut():auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
 
-/* 🧭 NAV */
 function go(p){
  document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
  document.getElementById(p).classList.add("active");
 }
 
-/* ☕ POST TEA */
-spillBtn.onclick = ()=>{
- if(!me) return alert("Login first");
- const text = teaText.value.trim();
- if(!text) return;
-
- db.collection("teas").add({
-  text,
-  uid: me.uid,
-  time: Date.now()
+function checkProfile(){
+ db.collection("users").doc(me.uid).get().then(d=>{
+  if(!d.exists || !d.data().username){
+   profileModal.style.display="flex";
+  }
  });
+}
 
- teaText.value = "";
+function saveProfile(){
+ db.collection("users").doc(me.uid).set({
+  username:username.value,
+  bio:bio.value,
+  dob:dob.value
+ });
+ profileModal.style.display="none";
+}
+
+spillBtn.onclick=()=>{
+ if(!me) return alert("Login first");
+ db.collection("posts").add({
+  text:teaText.value,
+  uid:me.uid,
+  likes:[],
+  time:Date.now()
+ });
+ teaText.value="";
 };
 
-/* 📰 FEED */
 function loadFeed(){
- db.collection("teas").orderBy("time","desc")
+ db.collection("posts").orderBy("time","desc")
  .onSnapshot(s=>{
   feed.innerHTML="";
   s.forEach(d=>{
-   feed.innerHTML += `
+   const p=d.data();
+   feed.innerHTML+=`
    <div class="card">
-    <p>${d.data().text}</p>
-    <small>${new Date(d.data().time).toLocaleString()}</small>
+    <p>${p.text}</p>
+    <span class="like" onclick="likePost('${d.id}')">
+     ❤️ ${p.likes.length}
+    </span>
    </div>`;
   });
  });
 }
 
-/* 👥 FOLLOW */
-followBtn.onclick = ()=>{
- if(!me) return alert("Login first");
- const uid = searchUid.value.trim();
- if(!uid) return;
-
- db.collection("follows").doc(me.uid+"_"+uid)
- .set({from:me.uid,to:uid});
-
- alert("Followed");
-};
-
-/* 👥 FOLLOWERS FEED */
-function loadFollowersFeed(){
- db.collection("follows").where("from","==",me.uid)
- .onSnapshot(s=>{
-  followersFeed.innerHTML="";
-  s.forEach(f=>{
-   db.collection("teas").where("uid","==",f.data().to)
-   .onSnapshot(t=>{
-    t.forEach(d=>{
-     followersFeed.innerHTML += `
-     <div class="card">${d.data().text}</div>`;
-    });
-   });
-  });
+function likePost(id){
+ const ref=db.collection("posts").doc(id);
+ ref.get().then(d=>{
+  const likes=d.data().likes||[];
+  const updated=likes.includes(me.uid)
+   ?likes.filter(x=>x!==me.uid)
+   :[...likes,me.uid];
+  ref.update({likes:updated});
  });
 }
 
-/* 👤 PROFILE */
-function loadProfile(){
- db.collection("users").doc(me.uid).onSnapshot(d=>{
-  if(d.exists){
-   username.value = d.data().username || "";
-   bio.value = d.data().bio || "";
-  }
- });
-
- db.collection("teas").where("uid","==",me.uid)
- .onSnapshot(s=>{
-  stats.innerText = "Posts: " + s.size;
-  myPosts.innerHTML="";
-  s.forEach(d=>{
-   myPosts.innerHTML += `<div class="card">${d.data().text}</div>`;
-  });
- });
-}
-
-document.getElementById("saveProfileBtn").onclick=()=>{
- if(!me) return;
- db.collection("users").doc(me.uid)
- .set({username:username.value,bio:bio.value},{merge:true});
- alert("Saved");
-};
-
-/* 💬 GCs */
-createGcBtn.onclick = ()=>{
- if(!me) return alert("Login first");
- const name = gcName.value.trim();
- if(!name) return;
-
- db.collection("groups").add({
-  name,
-  members:[me.uid],
-  created:Date.now()
- });
-
- gcName.value="";
+/* GCs */
+createGC.onclick=()=>{
+ db.collection("groups").add({name:gcName.value,members:[me.uid]});
 };
 
 function loadGCs(){
@@ -237,26 +166,27 @@ function loadGCs(){
  .onSnapshot(s=>{
   gcList.innerHTML="";
   s.forEach(d=>{
-   gcList.innerHTML += `
-   <button onclick="openGC('${d.id}')">${d.data().name}</button><br>`;
+   gcList.innerHTML+=`<button onclick="openGC('${d.id}')">${d.data().name}</button>`;
   });
  });
 }
 
 function openGC(id){
  currentGC=id;
- gcChat.innerHTML="";
- db.collection("messages")
- .where("gid","==",id)
+ db.collection("groups").doc(id).collection("messages")
  .orderBy("time")
  .onSnapshot(s=>{
   gcChat.innerHTML="";
-  s.forEach(m=>{
-   gcChat.innerHTML += `<div class="card">${m.data().text}</div>`;
-  });
+  s.forEach(m=>gcChat.innerHTML+=`<div class="card">${m.data().text}</div>`);
  });
 }
+
+sendMsg.onclick=()=>{
+ db.collection("groups").doc(currentGC)
+ .collection("messages").add({text:gcMsg.value,time:Date.now()});
+ gcMsg.value="";
+};
 </script>
 
 </body>
-</html>
+ </html>
