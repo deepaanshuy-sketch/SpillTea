@@ -138,17 +138,35 @@ async function checkProfile(){
  const snap=await ref.get();
  if(!snap.exists) modal.classList.remove("hidden");
 }
+async function saveProfile(){
+ const u = document.getElementById("username").value.trim();
+ const b = document.getElementById("bio").value.trim();
+ const d = document.getElementById("dob").value;
 
-function saveProfile(){
- db.collection("users").doc(currentUser.uid).set({
-  username:username.value,
-  bio:bio.value,
-  dob:dob.value,
-  followers:0,
-  posts:0
- });
- modal.classList.add("hidden");
+ if(!u){
+  alert("Username required");
+  return;
+ }
+
+ try{
+  await db.collection("users").doc(currentUser.uid).set({
+   username: u,
+   bio: b,
+   dob: d,
+   followers: 0,
+   posts: 0,
+   createdAt: Date.now()
+  }, { merge: true });
+
+  modal.classList.add("hidden");
+  alert("Profile saved ☕");
+
+ }catch(err){
+  alert("Save failed");
+  console.error(err);
+ }
 }
+
 
 // POST
 spillBtn.onclick=()=>{
