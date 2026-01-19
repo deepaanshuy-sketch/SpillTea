@@ -8,13 +8,12 @@
 <style>
 body{margin:0;background:#0f0f0f;color:#fff;font-family:system-ui}
 header,nav{background:#161616;padding:12px;display:flex;justify-content:space-between;align-items:center}
-button{background:#ffb703;border:none;padding:8px 14px;border-radius:20px}
+button{background:#ffb703;border:none;padding:8px 14px;border-radius:20px;cursor:pointer}
 .page{display:none;padding:12px}
 .page.active{display:block}
 .card{background:#1e1e1e;padding:12px;border-radius:14px;margin:10px 0}
 textarea,input{width:100%;padding:10px;border-radius:10px;border:none;margin-bottom:8px}
 small{color:#aaa}
-.tag{color:#4fc3f7}
 </style>
 </head>
 
@@ -27,8 +26,8 @@ small{color:#aaa}
 
 <!-- HOME -->
 <div id="home" class="page active">
-<textarea id="teaText" placeholder="Spill tea with #tags"></textarea>
-<button onclick="postTea()">Spill</button>
+<textarea id="teaText" placeholder="Spill tea..."></textarea>
+<button id="spillBtn">Spill</button>
 <div id="feed"></div>
 </div>
 
@@ -41,13 +40,13 @@ small{color:#aaa}
 <!-- BROWSE -->
 <div id="browse" class="page">
 <input id="searchUid" placeholder="Search user UID">
-<button onclick="followUser()">Follow</button>
+<button id="followBtn">Follow</button>
 </div>
 
 <!-- GCs -->
 <div id="gcs" class="page">
-<input id="gcName" placeholder="New group name">
-<button onclick="createGC()">Create GC</button>
+<input id="gcName" placeholder="Group name">
+<button id="createGcBtn">Create GC</button>
 <div id="gcList"></div>
 <div id="gcChat"></div>
 </div>
@@ -56,7 +55,7 @@ small{color:#aaa}
 <div id="profile" class="page">
 <input id="username" placeholder="Username">
 <textarea id="bio" placeholder="Your bio"></textarea>
-<button onclick="saveProfile()">Save</button>
+<button id="saveProfileBtn">Save</button>
 <p id="stats"></p>
 <div id="myPosts"></div>
 </div>
@@ -74,79 +73,107 @@ small{color:#aaa}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
+/* 🔥 Firebase */
 firebase.initializeApp({
  apiKey:"AIzaSyBsCftGcy-dH8RxxP2UxKoGG4DapRHHASo",
  authDomain:"spilltea-54aa8.firebaseapp.com",
  projectId:"spilltea-54aa8"
 });
 
-const auth=firebase.auth();
-const db=firebase.firestore();
-let me=null, currentGC=null;
+const auth = firebase.auth();
+const db = firebase.firestore();
+const provider = new firebase.auth.GoogleAuthProvider();
 
-auth.onAuthStateChanged(u=>{
- me=u;
- authBtn.innerText=u?"Logout":"Login";
- if(u){
+let me = null;
+let currentGC = null;
+
+/* 🔗 DOM */
+const authBtn = document.getElementById("authBtn");
+const spillBtn = document.getElementById("spillBtn");
+const teaText = document.getElementById("teaText");
+const feed = document.getElementById("feed");
+const followersFeed = document.getElementById("followersFeed");
+const searchUid = document.getElementById("searchUid");
+const followBtn = document.getElementById("followBtn");
+const gcName = document.getElementById("gcName");
+const createGcBtn = document.getElementById("createGcBtn");
+const gcList = document.getElementById("gcList");
+const gcChat = document.getElementById("gcChat");
+const username = document.getElementById("username");
+const bio = document.getElementById("bio");
+const stats = document.getElementById("stats");
+const myPosts = document.getElementById("myPosts");
+
+/* 🔐 AUTH STATE */
+auth.onAuthStateChanged(user=>{
+ me = user;
+ authBtn.innerText = user ? "Logout" : "Login";
+ if(user){
   loadFeed();
-  loadProfile();
   loadFollowersFeed();
+  loadProfile();
   loadGCs();
  }
 });
 
-authBtn.onclick=()=>{
- me?auth.signOut():auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());
+/* 🔐 LOGIN / LOGOUT (FIXED) */
+authBtn.onclick = ()=>{
+ if(me){
+  auth.signOut();
+ }else{
+  auth.signInWithPopup(provider);
+ }
 };
 
+/* 🧭 NAV */
 function go(p){
- document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
- document.getElementById(p).classList.add('active');
+ document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
+ document.getElementById(p).classList.add("active");
 }
 
-function postTea(){
+/* ☕ POST TEA */
+spillBtn.onclick = ()=>{
  if(!me) return alert("Login first");
- const text=teaText.value.trim();
+ const text = teaText.value.trim();
  if(!text) return;
 
- const tags=text.match(/#\w+/g)||[];
-
  db.collection("teas").add({
-  text, tags, uid:me.uid, time:Date.now()
+  text,
+  uid: me.uid,
+  time: Date.now()
  });
 
- tags.forEach(t=>{
-  db.collection("trending").doc(t)
-  .set({count:firebase.firestore.FieldValue.increment(1)},{merge:true});
- });
+ teaText.value = "";
+};
 
- teaText.value="";
-}
-
+/* 📰 FEED */
 function loadFeed(){
  db.collection("teas").orderBy("time","desc")
  .onSnapshot(s=>{
   feed.innerHTML="";
-  s.forEach(d=>feed.innerHTML+=teaCard(d.id,d.data()));
+  s.forEach(d=>{
+   feed.innerHTML += `
+   <div class="card">
+    <p>${d.data().text}</p>
+    <small>${new Date(d.data().time).toLocaleString()}</small>
+   </div>`;
+  });
  });
 }
 
-function teaCard(id,p){
- return `
- <div class="card">
-  <p>${p.text.replace(/#\w+/g,m=>`<span class="tag">${m}</span>`)}</p>
-  <small>${new Date(p.time).toLocaleString()}</small>
- </div>`;
-}
+/* 👥 FOLLOW */
+followBtn.onclick = ()=>{
+ if(!me) return alert("Login first");
+ const uid = searchUid.value.trim();
+ if(!uid) return;
 
-function followUser(){
- const uid=searchUid.value.trim();
- if(!uid||!me) return;
  db.collection("follows").doc(me.uid+"_"+uid)
  .set({from:me.uid,to:uid});
- alert("Followed");
-}
 
+ alert("Followed");
+};
+
+/* 👥 FOLLOWERS FEED */
 function loadFollowersFeed(){
  db.collection("follows").where("from","==",me.uid)
  .onSnapshot(s=>{
@@ -154,47 +181,55 @@ function loadFollowersFeed(){
   s.forEach(f=>{
    db.collection("teas").where("uid","==",f.data().to)
    .onSnapshot(t=>{
-    t.forEach(d=>followersFeed.innerHTML+=teaCard(d.id,d.data()));
+    t.forEach(d=>{
+     followersFeed.innerHTML += `
+     <div class="card">${d.data().text}</div>`;
+    });
    });
   });
  });
 }
 
-function saveProfile(){
- db.collection("users").doc(me.uid)
- .set({
-  username:username.value,
-  bio:bio.value
- },{merge:true});
- alert("Saved");
-}
-
+/* 👤 PROFILE */
 function loadProfile(){
  db.collection("users").doc(me.uid).onSnapshot(d=>{
   if(d.exists){
-   username.value=d.data().username||"";
-   bio.value=d.data().bio||"";
+   username.value = d.data().username || "";
+   bio.value = d.data().bio || "";
   }
  });
 
  db.collection("teas").where("uid","==",me.uid)
  .onSnapshot(s=>{
-  let tags=0;
-  s.forEach(d=>tags+=d.data().tags?.length||0);
-  stats.innerText=`Posts: ${s.size} | 🔥 Trending mentions: ${tags}`;
+  stats.innerText = "Posts: " + s.size;
   myPosts.innerHTML="";
-  s.forEach(d=>myPosts.innerHTML+=teaCard(d.id,d.data()));
+  s.forEach(d=>{
+   myPosts.innerHTML += `<div class="card">${d.data().text}</div>`;
+  });
  });
 }
 
-function createGC(){
- const name=gcName.value.trim();
- if(!name||!me) return;
+document.getElementById("saveProfileBtn").onclick=()=>{
+ if(!me) return;
+ db.collection("users").doc(me.uid)
+ .set({username:username.value,bio:bio.value},{merge:true});
+ alert("Saved");
+};
+
+/* 💬 GCs */
+createGcBtn.onclick = ()=>{
+ if(!me) return alert("Login first");
+ const name = gcName.value.trim();
+ if(!name) return;
+
  db.collection("groups").add({
-  name, members:[me.uid], created:Date.now()
+  name,
+  members:[me.uid],
+  created:Date.now()
  });
+
  gcName.value="";
-}
+};
 
 function loadGCs(){
  db.collection("groups")
@@ -202,7 +237,8 @@ function loadGCs(){
  .onSnapshot(s=>{
   gcList.innerHTML="";
   s.forEach(d=>{
-   gcList.innerHTML+=`<button onclick="openGC('${d.id}')">${d.data().name}</button><br>`;
+   gcList.innerHTML += `
+   <button onclick="openGC('${d.id}')">${d.data().name}</button><br>`;
   });
  });
 }
@@ -210,16 +246,17 @@ function loadGCs(){
 function openGC(id){
  currentGC=id;
  gcChat.innerHTML="";
- db.collection("messages").where("gid","==",id)
+ db.collection("messages")
+ .where("gid","==",id)
  .orderBy("time")
  .onSnapshot(s=>{
   gcChat.innerHTML="";
   s.forEach(m=>{
-   gcChat.innerHTML+=`<div class="card">${m.data().text}</div>`;
+   gcChat.innerHTML += `<div class="card">${m.data().text}</div>`;
   });
  });
 }
-
 </script>
+
 </body>
- </html>
+</html>
