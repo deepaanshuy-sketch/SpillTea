@@ -1,203 +1,195 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
 <title>SpillTea ☕</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 
 <style>
-body{
-  margin:0;
-  font-family: system-ui, sans-serif;
-  background:#0f0f0f;
-  color:white;
-}
-header{
-  padding:15px;
-  background:#151515;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-}
-button{
-  background:#ffb703;
-  border:none;
-  padding:8px 14px;
-  border-radius:20px;
-  cursor:pointer;
-  font-weight:600;
-}
-input,textarea{
-  width:100%;
-  padding:10px;
-  border-radius:10px;
-  border:none;
-  margin:6px 0;
-}
-#feed .post{
-  background:#1c1c1c;
-  margin:12px;
-  padding:12px;
-  border-radius:14px;
-}
-.counts{
-  display:flex;
-  gap:15px;
-  font-size:14px;
-  margin-top:6px;
-}
-nav{
-  position:fixed;
-  bottom:0;
-  width:100%;
-  background:#151515;
-  display:flex;
-  justify-content:space-around;
-  padding:10px 0;
-}
-.hidden{display:none;}
+body{margin:0;background:#0f0f0f;color:#fff;font-family:system-ui}
+header,nav{background:#161616;padding:12px;display:flex;justify-content:space-between;align-items:center}
+button{background:#ffb703;border:none;padding:8px 14px;border-radius:20px}
+.page{display:none;padding:12px}
+.page.active{display:block}
+.card{background:#1e1e1e;padding:12px;border-radius:14px;margin:10px 0}
+textarea,input{width:100%;padding:10px;border-radius:10px;border:none}
+small{color:#aaa}
 </style>
 </head>
 
 <body>
 
 <header>
-  <b>☕ SpillTea</b>
-  <button id="loginBtn">Login</button>
+<b>☕ SpillTea</b>
+<button id="authBtn">Login</button>
 </header>
 
-<div id="home">
-  <textarea id="teaText" placeholder="Spill your tea anonymously ☕ (no personal info)"></textarea>
-  <button onclick="postTea()">Spill Tea</button>
-  <div id="feed"></div>
+<!-- HOME -->
+<div id="home" class="page active">
+<textarea id="teaText" placeholder="Spill tea..."></textarea>
+<button onclick="postTea()">Spill</button>
+<div id="feed"></div>
 </div>
 
-<div id="profile" class="hidden">
-  <h2>My Profile</h2>
-  <textarea id="bio" placeholder="Add bio..."></textarea>
-  <button onclick="saveBio()">Save Bio</button>
-  <p id="stats"></p>
+<!-- FOLLOWERS TEA -->
+<div id="followers" class="page">
+<h3>Followers Tea</h3>
+<div id="followersFeed"></div>
 </div>
 
-<div id="browse" class="hidden">
-  <input id="search" placeholder="Search users..." oninput="searchUser()">
-  <div id="users"></div>
+<!-- BROWSE -->
+<div id="browse" class="page">
+<input id="searchUid" placeholder="Search UID">
+<button onclick="followUser()">Follow</button>
 </div>
 
-<div id="gcs" class="hidden">
-  <h3>Group Chats</h3>
-  <div id="gcBox"></div>
+<!-- GCS -->
+<div id="gcs" class="page">
+<h3>Group Chats</h3>
+<small>Coming soon</small>
+</div>
+
+<!-- PROFILE -->
+<div id="profile" class="page">
+<h3>Profile</h3>
+<textarea id="bio" placeholder="Your bio"></textarea>
+<button onclick="saveBio()">Save Bio</button>
+<p id="stats"></p>
+<div id="myPosts"></div>
 </div>
 
 <nav>
-  <button onclick="showPage('home')">Home</button>
-  <button onclick="showPage('browse')">Browse</button>
-  <button onclick="showPage('gcs')">GCs</button>
-  <button onclick="showPage('profile')">Profile</button>
+<button onclick="go('home')">🏠</button>
+<button onclick="go('followers')">👥</button>
+<button onclick="go('browse')">🔍</button>
+<button onclick="go('gcs')">💬</button>
+<button onclick="go('profile')">👤</button>
 </nav>
 
-<!-- FIREBASE -->
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-// 🔥 REPLACE THIS WITH YOUR FIREBASE CONFIG
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-};
-firebase.initializeApp(firebaseConfig);
-
-const auth = firebase.auth();
-const db = firebase.firestore();
-
-let user = null;
-
-// LOGIN
-document.getElementById("loginBtn").onclick = ()=>{
-  const provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider);
-};
-
-auth.onAuthStateChanged(u=>{
-  if(u){
-    user = u;
-    document.getElementById("loginBtn").innerText="Logout";
-    loadFeed();
-    loadProfile();
-  }else{
-    user=null;
-    document.getElementById("loginBtn").innerText="Login";
-  }
+firebase.initializeApp({
+ apiKey:"AIzaSyBsCftGcy-dH8RxxP2UxKoGG4DapRHHASo",
+ authDomain:"spilltea-54aa8.firebaseapp.com",
+ projectId:"spilltea-54aa8"
 });
 
+const auth=firebase.auth();
+const db=firebase.firestore();
+let me=null;
+
+// AUTH
+auth.onAuthStateChanged(u=>{
+ me=u;
+ authBtn.innerText=u?"Logout":"Login";
+ if(u){
+  loadFeed();
+  loadProfile();
+  loadFollowersFeed();
+ }
+});
+
+authBtn.onclick=()=>{
+ me?auth.signOut():auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());
+};
+
 // NAV
-function showPage(p){
-  ["home","profile","browse","gcs"].forEach(x=>{
-    document.getElementById(x).classList.add("hidden");
-  });
-  document.getElementById(p).classList.remove("hidden");
+function go(p){
+ document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+ document.getElementById(p).classList.add('active');
 }
 
 // POST TEA
 function postTea(){
-  if(!user) return alert("Login first");
-  const text = teaText.value.trim();
-  if(!text) return;
-
-  db.collection("teas").add({
-    text,
-    uid:user.uid,
-    likes:0,
-    time:Date.now()
-  });
-  teaText.value="";
+ if(!me) return alert("Login first");
+ const text=teaText.value.trim();
+ if(!text) return;
+ db.collection("teas").add({
+  text,
+  uid:me.uid,
+  time:Date.now()
+ });
+ teaText.value="";
 }
 
 // LOAD FEED
 function loadFeed(){
-  db.collection("teas")
-  .orderBy("time","desc")
-  .onSnapshot(snap=>{
-    feed.innerHTML="";
-    snap.forEach(doc=>{
-      const d=doc.data();
-      feed.innerHTML+=`
-      <div class="post">
-        <p>${d.text}</p>
-        <div class="counts">
-          <span>❤️ ${d.likes}</span>
-          <button onclick="like('${doc.id}')">Like</button>
-        </div>
-      </div>`;
-    });
+ db.collection("teas").orderBy("time","desc")
+ .onSnapshot(s=>{
+  feed.innerHTML="";
+  s.forEach(d=>{
+   feed.innerHTML+=teaCard(d.id,d.data());
   });
+ });
 }
 
-// LIKE
-function like(id){
-  if(!user) return alert("Login");
-  const ref=db.collection("teas").doc(id);
-  ref.update({likes:firebase.firestore.FieldValue.increment(1)});
+// COMMENTS
+function addComment(id){
+ const c=prompt("Comment");
+ if(!c) return;
+ db.collection("teas").doc(id)
+ .collection("comments").add({
+  text:c,
+  time:Date.now()
+ });
+}
+
+// CARD
+function teaCard(id,p){
+ return `
+ <div class="card">
+  <p>${p.text}</p>
+  <small>${new Date(p.time).toLocaleString()}</small><br>
+  <button onclick="addComment('${id}')">💬 Comment</button>
+ </div>`;
+}
+
+// FOLLOW
+function followUser(){
+ const uid=searchUid.value.trim();
+ if(!uid||!me) return;
+ db.collection("follows").doc(me.uid+"_"+uid)
+ .set({from:me.uid,to:uid});
+ alert("Followed");
+}
+
+// FOLLOWERS FEED
+function loadFollowersFeed(){
+ db.collection("follows").where("from","==",me.uid)
+ .onSnapshot(s=>{
+  followersFeed.innerHTML="";
+  s.forEach(f=>{
+   db.collection("teas").where("uid","==",f.data().to)
+   .onSnapshot(t=>{
+    t.forEach(d=>{
+     followersFeed.innerHTML+=teaCard(d.id,d.data());
+    });
+   });
+  });
+ });
 }
 
 // PROFILE
-function loadProfile(){
-  db.collection("users").doc(user.uid).get().then(d=>{
-    if(d.exists) bio.value=d.data().bio||"";
-  });
-}
 function saveBio(){
-  db.collection("users").doc(user.uid).set({
-    bio:bio.value
-  },{merge:true});
+ db.collection("users").doc(me.uid)
+ .set({bio:bio.value},{merge:true});
 }
 
-// SEARCH
-function searchUser(){
-  users.innerHTML="Feature ready (logic later)";
+function loadProfile(){
+ db.collection("users").doc(me.uid).get().then(d=>{
+  if(d.exists) bio.value=d.data().bio||"";
+ });
+ db.collection("teas").where("uid","==",me.uid)
+ .onSnapshot(s=>{
+  stats.innerText=`Posts: ${s.size}`;
+  myPosts.innerHTML="";
+  s.forEach(d=>{
+   myPosts.innerHTML+=teaCard(d.id,d.data());
+  });
+ });
 }
 </script>
 
