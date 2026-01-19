@@ -7,113 +7,98 @@
 
 <style>
 :root{
- --bg:#121212;
- --card:#1e1e1e;
- --accent:#8b5e34;
+ --bg:#0f0f0f;--card:#1c1c1c;--accent:#c08457;--muted:#aaa;
 }
-body{
- margin:0;
- background:var(--bg);
- color:#fff;
- font-family:system-ui;
-}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:#fff;font-family:system-ui}
+
 header{
- padding:1rem;
- background:#1a1a1a;
- display:flex;
- justify-content:space-between;
- align-items:center;
- position:sticky;
- top:0;
+ position:sticky;top:0;z-index:10;
+ background:#141414;padding:1rem;
+ display:flex;justify-content:space-between;align-items:center
 }
+
 button{
- background:var(--accent);
- border:none;
- color:#fff;
- padding:8px 14px;
- border-radius:8px;
- cursor:pointer;
+ background:var(--accent);border:none;color:#fff;
+ padding:8px 14px;border-radius:8px;cursor:pointer
 }
-.container{
- padding:1rem;
- padding-bottom:6rem;
-}
+
+.container{padding:1rem;padding-bottom:5rem}
+
 .card{
- background:var(--card);
- padding:1rem;
- border-radius:12px;
- margin-bottom:1rem;
+ background:var(--card);border-radius:14px;
+ padding:1rem;margin-bottom:1rem
 }
+
 textarea,input{
- width:100%;
- background:#2a2a2a;
- border:none;
- color:#fff;
- padding:.6rem;
- border-radius:8px;
+ width:100%;border-radius:8px;border:none;
+ padding:.6rem;background:#222;color:#fff
 }
-small{color:#aaa}
-nav{
- position:fixed;
- bottom:0;
- width:100%;
- background:#1a1a1a;
- display:flex;
- justify-content:space-around;
- padding:.8rem 0;
+
+small{color:var(--muted)}
+
+.actions{display:flex;gap:1rem;margin-top:.5rem}
+
+.nav{
+ position:fixed;bottom:0;width:100%;
+ background:#141414;display:flex;
+ justify-content:space-around;padding:.7rem 0
 }
+.nav span{
+ opacity:.5;cursor:pointer;font-size:1.2rem
+}
+.nav span.active{opacity:1}
+
+.hidden{display:none}
 
 /* modal */
 .modal{
- position:fixed;
- inset:0;
+ position:fixed;inset:0;
  background:rgba(0,0,0,.7);
- display:flex;
- justify-content:center;
- align-items:center;
+ display:flex;align-items:center;justify-content:center;z-index:20
 }
-.modal-box{
- background:#1e1e1e;
- padding:1rem;
- border-radius:12px;
- width:90%;
- max-width:320px;
+.modal .box{
+ background:#1e1e1e;padding:1rem;
+ border-radius:12px;width:90%;max-width:380px
 }
-.hidden{display:none}
 </style>
 </head>
 
 <body>
 
 <header>
- <h3>SpillTea ☕</h3>
+ <b>SpillTea ☕</b>
  <button id="authBtn">Login</button>
 </header>
 
 <div class="container">
 
-<div id="spillBox" class="hidden">
+<div id="spillBox" class="card hidden">
  <textarea id="teaText" placeholder="Spill your tea ☕"></textarea><br><br>
  <button id="spillBtn">Spill</button>
- <hr>
 </div>
 
-<div id="feed"></div>
+<div id="home"></div>
+<div id="notifications" class="hidden"></div>
+<div id="groups" class="hidden"></div>
+<div id="profile" class="hidden"></div>
 
 </div>
 
-<nav>
- <span onclick="loadFeed()">🏠</span>
-</nav>
+<div class="nav">
+ <span class="active" data-page="home">🏠</span>
+ <span data-page="notifications">🔔</span>
+ <span data-page="groups">💬</span>
+ <span data-page="profile">👤</span>
+</div>
 
-<!-- PROFILE MODAL -->
 <div id="profileModal" class="modal hidden">
- <div class="modal-box">
+ <div class="box">
   <h3>Complete Profile</h3><br>
   <input id="username" placeholder="Username"><br><br>
   <input id="bio" placeholder="Bio"><br><br>
   <input id="dob" type="date"><br><br>
-  <button onclick="saveProfile()">Save</button>
+  <button id="saveProfileBtn">Save</button>
  </div>
 </div>
 
@@ -123,7 +108,7 @@ nav{
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-// 🔥 Firebase config (yours)
+// 🔥 Firebase
 firebase.initializeApp({
  apiKey: "AIzaSyBsCftGcy-dH8RxxP2UxKoGG4DapRHHASo",
  authDomain: "spilltea-54aa8.firebaseapp.com",
@@ -137,14 +122,23 @@ const provider = new firebase.auth.GoogleAuthProvider();
 // DOM
 const authBtn = document.getElementById("authBtn");
 const spillBox = document.getElementById("spillBox");
-const feed = document.getElementById("feed");
 const spillBtn = document.getElementById("spillBtn");
 const teaText = document.getElementById("teaText");
-const modal = document.getElementById("profileModal");
 
-// AUTH STATE
+const home = document.getElementById("home");
+const notifications = document.getElementById("notifications");
+const groups = document.getElementById("groups");
+const profile = document.getElementById("profile");
+
+const modal = document.getElementById("profileModal");
+const saveProfileBtn = document.getElementById("saveProfileBtn");
+
+let currentUser = null;
+
+// AUTH
 auth.onAuthStateChanged(async user=>{
  if(user){
+  currentUser = user;
   authBtn.innerText = "Logout";
   spillBox.classList.remove("hidden");
 
@@ -154,83 +148,93 @@ auth.onAuthStateChanged(async user=>{
   }
 
   loadFeed();
+  renderProfile();
  }else{
+  currentUser = null;
   authBtn.innerText = "Login";
   spillBox.classList.add("hidden");
  }
 });
 
-// LOGIN
+// LOGIN FIX ✅
 authBtn.onclick = ()=>{
  auth.currentUser
- ? auth.signOut()
- : auth.signInWithPopup(provider);
+  ? auth.signOut()
+  : auth.signInWithPopup(provider);
 };
 
-// SAVE PROFILE ✅ GUARANTEED WORKING
-async function saveProfile(){
- const user = auth.currentUser;
- if(!user) return alert("Not logged in");
+// SAVE PROFILE
+saveProfileBtn.onclick = async ()=>{
+ const u = username.value.trim();
+ if(!u) return alert("Username required");
 
- const username = document.getElementById("username").value.trim();
- const bio = document.getElementById("bio").value.trim();
- const dob = document.getElementById("dob").value;
-
- if(username.length < 3){
-  alert("Username too short");
-  return;
- }
-
- await db.collection("users").doc(user.uid).set({
-  username,
-  bio,
-  dob,
-  followers:0,
-  posts:0,
-  createdAt:Date.now()
+ await db.collection("users").doc(currentUser.uid).set({
+  username: u,
+  bio: bio.value,
+  dob: dob.value,
+  followers: 0,
+  posts: 0
  },{merge:true});
 
  modal.classList.add("hidden");
-}
+};
 
-// SPILL TEA
+// POST
 spillBtn.onclick = async ()=>{
- if(!auth.currentUser) return;
-
  const text = teaText.value.trim();
  if(!text) return;
 
  await db.collection("posts").add({
   text,
-  uid: auth.currentUser.uid,
-  time: Date.now(),
-  likes:0
+  uid: currentUser.uid,
+  time: Date.now()
  });
-
- await db.collection("users")
- .doc(auth.currentUser.uid)
- .update({posts:firebase.firestore.FieldValue.increment(1)});
 
  teaText.value="";
 };
 
-// LOAD FEED (reload safe)
+// FEED
 function loadFeed(){
  db.collection("posts")
  .orderBy("time","desc")
- .onSnapshot(snap=>{
-  feed.innerHTML="";
-  snap.forEach(doc=>{
-   const p = doc.data();
-   feed.innerHTML += `
+ .onSnapshot(s=>{
+  home.innerHTML="";
+  s.forEach(d=>{
+   home.innerHTML+=`
     <div class="card">
-     <p>${p.text}</p>
-     <small>${new Date(p.time).toLocaleString()}</small>
-    </div>
-   `;
+     <p>${d.data().text}</p>
+     <small>${new Date(d.data().time).toLocaleString()}</small>
+    </div>`;
   });
  });
 }
+
+// PROFILE RENDER
+async function renderProfile(){
+ const snap = await db.collection("users").doc(currentUser.uid).get();
+ if(!snap.exists) return;
+ const u = snap.data();
+ profile.innerHTML = `
+  <div class="card">
+   <b>@${u.username}</b>
+   <p>${u.bio||""}</p>
+   <small>Posts: ${u.posts||0} · Followers: ${u.followers||0}</small>
+  </div>`;
+}
+
+// NAV FIX ✅
+document.querySelectorAll(".nav span").forEach(tab=>{
+ tab.onclick = ()=>{
+  document.querySelectorAll(".nav span").forEach(t=>t.classList.remove("active"));
+  tab.classList.add("active");
+
+  ["home","notifications","groups","profile"].forEach(p=>{
+   document.getElementById(p).classList.add("hidden");
+  });
+
+  document.getElementById(tab.dataset.page).classList.remove("hidden");
+ };
+});
 </script>
 
 </body>
